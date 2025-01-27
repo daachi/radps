@@ -125,4 +125,3 @@ def extract_transform_load() -> dict:
 if __name__ == "__main__":
 
     target_data = extract_transform_load()
-B
