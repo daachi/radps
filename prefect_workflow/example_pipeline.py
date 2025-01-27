@@ -3,6 +3,7 @@ import requests
 import dask.array as da
 import xarray as xr
 from prefect import flow, task
+from prefect.cache_policies import TASK_SOURCE
 
 # Implemetation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
@@ -46,7 +47,7 @@ def fake_flagging(fake_result) -> dict:
 
     return transformed_data
 
-@task
+@task(cache_policy=TASK_SOURCE)
 def alma_antpos_query() -> dict:
 
     response = requests.get("http://asa.alma.cl/axis2/services/TMCDBAntennaPadService?wsdl")
