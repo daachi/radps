@@ -1,4 +1,5 @@
 import time
+import requests
 import dask.array as da
 import xarray as xr
 from prefect import flow, task
@@ -44,6 +45,24 @@ def fake_flagging(fake_result) -> dict:
     transformed_data["data"].pop("source_1")
 
     return transformed_data
+
+@task
+def alma_jyperk_query() -> dict:
+    uid = "uid://A002/X85c183/X36f"
+    response = requests.get(f"https://asa.alma.cl/science/jy-kelvins/asdm/?uid={uid}")
+    if (response.json()["success"] is True and response.json()["error"] is None):
+        try:
+            queried_MS = response.json()["data"]["factors"][0]
+        except requests.exceptions.JSONDecodeError:
+            print("Warning: Invalid JSON in output of succesful query!")
+            print("Proceeding anyway...")
+            queried_MS = None
+    else:
+        print("Warning: There was an issue with the WS query!")
+        print("Proceeding anyway...")
+        queried_MS = None
+
+    return queried_MS
 
 @flow
 def extract_transform_load() -> dict:
