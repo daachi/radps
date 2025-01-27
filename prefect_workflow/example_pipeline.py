@@ -52,12 +52,39 @@ def alma_antpos_query() -> dict:
 
     response = requests.get("http://asa.alma.cl/axis2/services/TMCDBAntennaPadService?wsdl")
     try:
-        result_json = response.json()["data"]
+        antpos_result_json = response.json()["data"]
     except requests.exceptions.JSONDecodeError:
         print("Oh no, there was an issue with the query! Proceeding with empty result object.")
-        result_json = {}
+        antpos_result_json = {}
 
-    return result_json
+    return antpos_result_json
+
+@task
+def generate_antpos_caltable(antpos_result_json):
+
+    print("Pretending to generate a caltable using the results of an antenna position service query")
+    time.sleep(4)
+    antpos_caltable = {
+        "gains" :  da.random.random_sample(size=(10,4))
+    }
+
+    return antpos_caltable
+
+@task
+def apply_antpos_caltable(uncalibrated_data, antpos_caltable):
+
+    calibrated_data = uncalibrated_data
+    calibrated_data["data"]["source_0"] = antpos_caltable["gains"] * uncalibrated_data["data"]["source_0"]
+
+    return calibrated_data
+
+@flow
+def generate_and_apply_antpos_gain_table(uncalibrated_data, antpos_result_json) -> dict:
+
+    antpos_caltable = generate_antpos_caltable(antpos_result_json)
+    calibrated_data = apply_antpos_caltable(uncalibrated_data, antpos_caltable)
+
+    return calibrated_data
 
 @flow
 def extract_transform_load() -> dict:
@@ -70,10 +97,22 @@ def extract_transform_load() -> dict:
     print("Finished modifying some object from that task function")
 
     print("Calling antpos query task")
-    transformed_data = alma_antpos_query()
+    antpos_query_result = alma_antpos_query()
     print("Finished attempting to retrieve data from an external service")
 
-    return transformed_data
+    print("Checking to see if we can/should try to perform antenna position corrections")
+    if antpos_query_result == {}:
+        # treat an empty dictionary as expected input, just so we can see the conditional flow
+        print("Seems like we have a result. Running conditional flow")
+        calibrated_data = generate_and_apply_antpos_gain_table(transformed_data, antpos_query_result)
+    else:
+        print("Looks like we don't have a result. Skipping conditional flow")
+    print("Finished attempting to perform antenna position corrections")
+
+    try:
+        return calibrated_data
+    except NameError:
+        return transformed_data
 
 # Calibrate Target and Find Continuum
 
@@ -86,3 +125,4 @@ def extract_transform_load() -> dict:
 if __name__ == "__main__":
 
     target_data = extract_transform_load()
+B
