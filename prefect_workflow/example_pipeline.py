@@ -49,7 +49,7 @@ def fake_flagging(fake_result) -> dict:
 
 @task(cache_policy=TASK_SOURCE)
 def alma_antpos_query() -> dict:
-
+    print("Requesting some data from an external antenna position service")
     response = requests.get("http://asa.alma.cl/axis2/services/TMCDBAntennaPadService?wsdl")
     try:
         antpos_result_json = response.json()["data"]
@@ -61,7 +61,6 @@ def alma_antpos_query() -> dict:
 
 @task
 def generate_antpos_caltable(antpos_result_json):
-
     print("Pretending to generate a caltable using the results of an antenna position service query")
     time.sleep(4)
     antpos_caltable = {
@@ -72,7 +71,7 @@ def generate_antpos_caltable(antpos_result_json):
 
 @task
 def apply_antpos_caltable(uncalibrated_data, antpos_caltable):
-
+    print("Pretending to apply a transformation on some data using a calibration table")
     calibrated_data = uncalibrated_data
     calibrated_data["data"]["source_0"] = antpos_caltable["gains"] * uncalibrated_data["data"]["source_0"]
 
@@ -80,7 +79,7 @@ def apply_antpos_caltable(uncalibrated_data, antpos_caltable):
 
 @flow
 def generate_and_apply_antpos_gain_table(uncalibrated_data, antpos_result_json) -> dict:
-
+    print("Calling tasks that generate some data and use it to transform some other data")
     antpos_caltable = generate_antpos_caltable(antpos_result_json)
     calibrated_data = apply_antpos_caltable(uncalibrated_data, antpos_caltable)
 
@@ -109,6 +108,7 @@ def extract_transform_load() -> dict:
         print("Looks like we don't have a result. Skipping conditional flow")
     print("Finished attempting to perform antenna position corrections")
 
+    print("Returning results of the target data import and prep stage")
     try:
         return calibrated_data
     except NameError:
