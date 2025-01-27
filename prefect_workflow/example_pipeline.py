@@ -18,7 +18,7 @@ from prefect import flow, task
 @task
 def fake_archive_query() -> dict:
     print("Pretending to fetch some data from an archive")
-    time.sleep(3)
+    time.sleep(da.random.randint(low=1, high=10, size=1))
     print("Now that that latency simulation is complete, generating some mock data to return")
     rng = da.random.default_rng()
     target_vals = rng.standard_normal(size=(100,100,2,4))
@@ -36,15 +36,24 @@ def fake_archive_query() -> dict:
 
     return fake_result
 
+@task
+def fake_flagging(fake_result) -> dict:
+    print("Performing a dummy sub-selection step")
+    time.sleep(2)
+    transformed_data = fake_result
+    transformed_data["data"].pop("source_1")
+
+    return transformed_data
+
 @flow
 def extract_transform_load() -> dict:
     print("Calling archive query task")
     fake_data = fake_archive_query()
     print("Finished retrieving some object from that task function")
-    print("Performing a dummy sub-selection step")
-    time.sleep(2)
-    transformed_data = fake_data
-    transformed_data["data"].pop("source_1")
+
+    print("Calling flagging task")
+    transformed_data = fake_flagging(fake_data)
+    print("Finished modifying some object from that task function")
 
     return transformed_data
 
@@ -57,4 +66,5 @@ def extract_transform_load() -> dict:
 # Per-SPW Continuum Imaging
 
 if __name__ == "__main__":
-    extract_transform_load()
+
+    target_data = extract_transform_load()
