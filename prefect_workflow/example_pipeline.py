@@ -47,22 +47,16 @@ def fake_flagging(fake_result) -> dict:
     return transformed_data
 
 @task
-def alma_jyperk_query() -> dict:
-    uid = "uid://A002/X85c183/X36f"
-    response = requests.get(f"https://asa.alma.cl/science/jy-kelvins/asdm/?uid={uid}")
-    if (response.json()["success"] is True and response.json()["error"] is None):
-        try:
-            queried_MS = response.json()["data"]["factors"][0]
-        except requests.exceptions.JSONDecodeError:
-            print("Warning: Invalid JSON in output of succesful query!")
-            print("Proceeding anyway...")
-            queried_MS = None
-    else:
-        print("Warning: There was an issue with the WS query!")
-        print("Proceeding anyway...")
-        queried_MS = None
+def alma_antpos_query() -> dict:
 
-    return queried_MS
+    response = requests.get("http://asa.alma.cl/axis2/services/TMCDBAntennaPadService?wsdl")
+    try:
+        result_json = response.json()["data"]
+    except requests.exceptions.JSONDecodeError:
+        print("Oh no, there was an issue with the query! Proceeding with empty result object.")
+        result_json = {}
+
+    return result_json
 
 @flow
 def extract_transform_load() -> dict:
@@ -73,6 +67,10 @@ def extract_transform_load() -> dict:
     print("Calling flagging task")
     transformed_data = fake_flagging(fake_data)
     print("Finished modifying some object from that task function")
+
+    print("Calling antpos query task")
+    transformed_data = alma_antpos_query()
+    print("Finished attempting to retrieve data from an external service")
 
     return transformed_data
 
