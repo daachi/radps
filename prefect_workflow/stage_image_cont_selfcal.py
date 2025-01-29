@@ -1,10 +1,22 @@
 # Stage: Continuum imaging with self-calibration
 
-from prefect import task, flow
-from prefect import runtime, tags
+from prefect import task, flow, tags
+from prefect.runtime import task_run, flow_run
 from time import sleep
 
 ns = 1
+
+# utility functions
+def generate_image_datashape(imsize,nchan=1,npol=1)-> dict:
+    imageshape = {'x':imsize, 'y':imsize, 'nchan':nchan, 'npol':npol}
+    return imageshape
+
+def generate_flow_name():
+    """ generate flow name based on runtime info"""
+    flow_name = flow_run.flow_name 
+    flow_params = flow_run.parameters
+    typeparam = flow_params['soltype']
+    return f"{typeparam}_{flow_name}"
 
 @task
 def load_context(inp,src):
@@ -62,9 +74,46 @@ def applymodel(inp, datashape, src):
    sleep(ns)
    return datashape
 
-@flow 
-def solve(inp, src, combine=None, niter=2):
-    """general solver"""
+@flow
+def store_context(inp):
+    """Store context"""
+    sleep(ns)
+    ret = inp
+    return ret
+
+@task
+def archive_export_func(inp,id=0):
+    """archive and export results"""
+    sleep(ns)
+    return
+
+@flow
+def archive_export(inp, src, paraxes='fieldandspw') -> list:
+    """Export and archive results
+    parallize by field and spw ('fieldandspw')
+    or 
+    parallize by field ('field')
+    """
+    n_field = inp[src]['n_field']
+    n_spw = inp[src]['n_spw']
+    if paraxes == 'fieldandspw':
+        npar = n_field*n_spw
+    else:
+        npar = n_field
+
+    exp_par = []
+    for i in range(0, npar):
+        exp_par.append(archive_export_func.submit(inp,i))
+    sleep(ns)
+    return [j.result() for j in exp_par]
+
+
+@flow(flow_run_name=generate_flow_name)
+def solve(inp, src, combine=None, niter=2, soltype='calibration'):
+    """
+    general solver
+      soltype determines main output results are caltable/visibilities or images   
+    """
     datashape = dict(inp)
     n_field = datashape[src]['n_field']
     n_spw = datashape[src]['n_spw']
@@ -72,7 +121,7 @@ def solve(inp, src, combine=None, niter=2):
     print("running solve...")
     prep = data_prep(inp)
     cal_par = []
-    ret = []
+    ret = {} 
     if combine is None:
         for i in range(0,n_field*n_spw*n_scan):
             cal_par.append(solve_model.submit(prep, i) )
@@ -88,33 +137,36 @@ def solve(inp, src, combine=None, niter=2):
             n_par = n_field
             n_comb = n_spw*n_scan
             ret = inp
-        model_par = []
+        model_par = [] # calibration solutions(caltable) or images
         for i in range(0, n_par): ## separate solution for each of n_par
-            model = prep # prefect.get...
+            model = prep
 
             for iter in range(0,niter):  ## Number of solver loops (iterations)
                 res_par=[]
-                for j in range(0,n_comb): ## In-algorithm parallelism 
+                for j in range(0,n_comb): ## In-algorit(hm parallelism 
                     res_par.append(calc_update_direction.submit(model,j)) ## caltable pre-apply (or model vis prediction) happens on the same parallelization axis as the update_direction calculation.
                 modelc = update_model(res_par,i)
                 model = check_converge(modelc,i)
             model_par.append(model)
-        if ret==[]:
+        if ret==dict() and type == 'calibration':
             ret = model_par
-        
+        elif type == 'imaging':
+            ret = generate_image_datashape(512,512)
     return ret
 
 @flow (description='Continuum imaging with self-calibration stage')
 def stage_image_cont_selfcal(inp,src='target', doselfcal=False):
     """workflow for continuum imaging with self-calibration"""
+
     # load target calibrated visibility data 
     calibrated_target_vis = load_context(inp,src=src)
-    print('calibrated_target_vis=',calibrated_target_vis)
+    
     # make aggregate continuum image
     with tags('initial imaging'):
-        target_image_data = solve(calibrated_target_vis,src='target',combine='both') ## Cont Image each field separately. Combine on scan and spw. 
-    print('initial imaging done target_image_data=', target_image_data)
-    # QA: doselfcal = True and SNR > snrThreshold
+        target_image_data = solve(calibrated_target_vis,
+                                  src='target', combine='both', soltype='imaging')
+    
+    # QA: doselfcal = True and SNR > predifined_SNR_threshold 
     qa_result = calc_heuristics(target_image_data, type='bool')
 
     selfcalresult = {}
@@ -123,24 +175,33 @@ def stage_image_cont_selfcal(inp,src='target', doselfcal=False):
     if qa_result and doselfcal: # QA passes and selfcal is requested
          # selfcal iteration loop
         while(selfcal_hueristics):
-            print('cal_table solve')
-            cal_table = solve(calibrated_target_vis,src='target',combine='spw') ## Gain Solve per timestep (with combinespw)
+            with tags('gain calibration'):
+                cal_table = solve(calibrated_target_vis,src='target',combine='spw')
             updated_data = applymodel(cal_table,inp, src='target') ## Apply caltables.
-            print('image solve')
-            updated_image = solve(updated_data,src='target',combine='both') ## Cont Image each field separately. Combine on scan and spw. 
-            updated_model_data = applymodel(updated_data,inp,src='target') ## Save model visibilities
+            with tags('selfcal imaging'):
+                updated_image = solve(updated_data,src='target',combine='both',soltype='imaging') 
+            # Save model visibilities
+            updated_model_data = applymodel(updated_data,inp,src='target')
             qascore = calc_qa(updated_image)
             selfcalresult['updated_image']=updated_image
             selfcalresult['QA'] = qascore
             selfcal_hueristics = calc_heuristics(selfcalresult,type='boolean')   
+            # if qascore and/or selfcal_hueristics need to backout 
+            # to previous images/vis data as final result
             count += 1
-            # get out of loop 
+            # get out of loop for now (assuming 'stop selfcal' condition reached) 
             if count == 2: 
                 print('Iteration count limit reached for selfcal loop')
                 selfcal_hueristics = False
-    #res6 = task_archive_export(res,datashape,src='target',par=2) ## Export continuum images, parallelize by field only
-    #res7 = task_store_context(res6)
-    return 
+    else:
+        print('Self-calibration not performed.')        
+        return 'skipped'
+    # Usually it requires to rollback to previous images and cal solutions when exit from
+    # selfcal loop and before saving the results. 
+    # selfcalresult['updated_image'] = previous_image
+    archived_data = archive_export(selfcalresult['updated_image'],src='target',paraxes='field') ## Export continuum images, parallelize by field only
+    stored_context = store_context(archived_data)
+    return stored_context
 
 
 if __name__ == "__main__":
