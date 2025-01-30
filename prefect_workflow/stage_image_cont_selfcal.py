@@ -37,10 +37,10 @@ def calc_qa(inp):
     """Calculate QA metrics"""
     sleep(ns)
     #pass or fail
-    return 
+    return inp
 
 @task
-def calc_heuristics(inp, type):
+def calc_heuristics(inp, type=''):
     """Calculate heuristics """
     sleep(ns)
     if type == 'boolean':
@@ -118,7 +118,11 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
     n_field = datashape[src]['n_field']
     n_spw = datashape[src]['n_spw']
     n_scan = datashape[src]['n_scan']
-    print("running solve...")
+    n_chan = 1
+    if soltype == 'cube_imaging':
+        if 'n_chan' in datashape[src]:
+            n_chan = datashape[src]['n_chan']
+
     prep = data_prep(inp)
     cal_par = []
     ret = {} 
@@ -128,7 +132,10 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
             ret = [i.result() for i in cal_par]
     else:
         if combine == 'scan':
-            n_par = n_field*n_spw
+            if soltype == 'cube_imaging':
+                n_par = n_field*n_spw*n_chan 
+            else:
+                n_par = n_field*n_spw
             n_comb = n_scan
         elif combine == 'spw':
             n_par = n_field*n_scan
@@ -143,15 +150,20 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
 
             for iter in range(0,niter):  ## Number of solver loops (iterations)
                 res_par=[]
-                for j in range(0,n_comb): ## In-algorit(hm parallelism 
+                for j in range(0,n_comb): ## In-algorithm parallelism 
                     res_par.append(calc_update_direction.submit(model,j)) ## caltable pre-apply (or model vis prediction) happens on the same parallelization axis as the update_direction calculation.
                 modelc = update_model(res_par,i)
                 model = check_converge(modelc,i)
             model_par.append(model)
         if ret==dict() and type == 'calibration':
             ret = model_par
-        elif type == 'imaging':
-            ret = generate_image_datashape(512,512)
+        elif 'imaging' in soltype:
+            if soltype == 'cube_imaging':
+                print('n_chan==', n_chan)
+                ret = generate_image_datashape(512,nchan=n_chan) 
+            else:
+                ret = generate_image_datashape(512)
+            ret.update(dict(inp))
     return ret
 
 @flow (description='Continuum imaging with self-calibration stage')
@@ -199,7 +211,8 @@ def stage_image_cont_selfcal(inp,src='target', doselfcal=False):
     # Usually it requires to rollback to previous images and cal solutions when exit from
     # selfcal loop and before saving the results. 
     # selfcalresult['updated_image'] = previous_image
-    archived_data = archive_export(selfcalresult['updated_image'],src='target',paraxes='field') ## Export continuum images, parallelize by field only
+    # Export continuum images, parallelize by field only
+    archived_data = archive_export(selfcalresult['updated_image'],src='target',paraxes='field')
     stored_context = store_context(archived_data)
     return stored_context
 
