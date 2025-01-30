@@ -2,8 +2,12 @@ import time
 import requests
 import dask.array as da
 import scipy
+from matplotlib.image import imsave
+import pathlib
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
+
+from example_calibration_pipeline import create_qa_artifact
 
 # Implemetation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
@@ -234,8 +238,14 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     calibrated_data = apply_caltable(input_data, dummy_caltable, "source_1")
 
     stage_result = make_qa_score()
+    create_qa_artifact(stage_result, artifact_type="table")
 
     dirty_cube = make_dirty_cube(calibrated_data)
+
+    # just write a slice of our fake image to disk
+    imsave("image.png", dirty_cube["data"]["source_1"][:,:,0,0].compute())
+    stage_result["url"] = pathlib.Path("image.png").resolve().as_uri()
+    create_qa_artifact(stage_result, artifact_type="image")
 
     continuum_data = find_continuum(dirty_cube)
 
