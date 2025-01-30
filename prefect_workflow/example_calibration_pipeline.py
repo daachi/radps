@@ -41,7 +41,7 @@ def fake_data(dimensions: tuple) -> dict:
     """
     Create fake data
     """
-    data = np.random.rand(dimensions)
+    data = np.random.rand(*dimensions)
     return data
 
 
@@ -114,7 +114,7 @@ def import_data_from_archive(data) -> dict:
     if randomly_fail():
         raise Exception("Import data from archive failed")
     else:
-        return fake_data(1000, 1000)
+        return fake_data((1000, 1000))
 
 
 @task(tags=["flagging"])
@@ -130,13 +130,13 @@ def get_antpos_info(data):
 @task(tags=["heuristics"])
 def create_antpos_table(antenna_position_corrections, data):
     sleep_placeholder()
-    return fake_data(100,100)
+    return fake_data((100,100))
 
 
 @task(tags=["calibration"])
 def apply_antpos(table, data):
     sleep_placeholder()
-    return fake_data(1000, 1000)
+    return fake_data((1000, 1000))
 
 
 @flow(log_prints=True)
