@@ -1,12 +1,16 @@
 from prefect import flow, task
 from prefect.artifacts import create_markdown_artifact
+from prefect.deployments import run_deployment
+from prefect.events import emit_event
 from prefect.logging import get_run_logger
+
 
 from typing import List
 
 import numpy as np
 import time
 import random
+import pickle
 
 # Implemetation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
@@ -15,6 +19,25 @@ import random
 
 # TODO: if we keep the 'tags' thing, define tags for each rather than copy-paste strings
 
+
+class Context:
+    path = "context.pkl"
+
+    def __init__(self):
+        self.qa_scores = {}
+
+    def update(self, qa_score):
+        for key, value in qa_score.items():
+            self.qa_scores[key] = value
+
+    def save(self, filename='context.pkl'):
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, filename=path):
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
 
 # NOTE: Since nested flows cannot be cancelled without cancelling the
 # parent flow, in the future we should consider using separate
@@ -28,13 +51,20 @@ def calibration_pipeline_example():
     bpcal = "bandpass_calibrator_name"
     gaincal = "gain_calibrator_name"
     calibrators = [bpcal, gaincal]
-
     for calibrator in calibrators:
+#        run_deployment(
+#            name="calibrator-data-import-and-prep/import data and prep",
+#            parameters={"calibrator": calibrator},
+#            job_variables={"env": {"MY_ENV_VAR": "staging"}},
+#            timeout=0
+#            )
         calibrator_data_import_and_prep(calibrator)  # TODO: do this in parallel eventually, but cannot as a flow
     bandpass_solve(bpcal)
     time_gain_solve(gaincal)
     for calibrator in calibrators:  # TODO: do this in parallel eventually, but cannot as a flow
         image_calibrator(calibrator)
+    context = Context.load()
+    create_qa_artifact(context.qa_scores)
 
 
 def fake_data(dimensions: tuple) -> dict:
@@ -45,7 +75,7 @@ def fake_data(dimensions: tuple) -> dict:
     return data
 
 
-def fake_qa_score(name: str = None) -> dict:
+def fake_qa_score(name: str = None, **kwargs) -> dict:
     """
     Create a fake QA score withith a random value.
     """
@@ -72,7 +102,7 @@ def create_qa_artifact(qa_scores: dict):
     )
 
 
-def randomly_fail() -> bool:  # TODO: Possibly maybe make this a decorator instead?
+def randomly_fail() -> bool:
     """
     Randomly return True or False.
     Intended to test the ability to handle failures.
@@ -120,17 +150,19 @@ def import_data_from_archive(data) -> dict:
 @task(tags=["flagging"])
 def apply_online_flags(data):
     sleep_placeholder()
+    return data
 
 
 @task(tags=["io"])
 def get_antpos_info(data):
     sleep_placeholder()
+    return fake_data((100, 100))
 
 
 @task(tags=["heuristics"])
 def create_antpos_table(antenna_position_corrections, data):
     sleep_placeholder()
-    return fake_data((100,100))
+    return fake_data((100, 100))
 
 
 @task(tags=["calibration"])
@@ -147,6 +179,8 @@ def calibrator_data_import_and_prep(calibrator):
     logger = get_run_logger()
     logger.info(f"Starting calibrator data import and prep for {calibrator}")
 
+    context = Context()
+
     logger.info(f"Importing data from archive for {calibrator}")
     calibrator_data = import_data_from_archive(calibrator)
 
@@ -161,20 +195,37 @@ def calibrator_data_import_and_prep(calibrator):
 
     logger.info(f"Applying antenna position corrections for {calibrator}")
     result = apply_antpos(flagged_data, antpos_table)
+    logger.info(f"Result of calibrator data import and prep for {calibrator}: {result}")
 
     logger.info("Updating context and creating QA artifact")
-    update_context(result)
-    create_qa_artifact(fake_qa_score('data_import_and_prep'))
+    qa_score = fake_qa_score('data_import_and_prep', result=result)
+
+    if qa_score['data_import_and_prep'] < 0.67:
+        emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
+
+    create_qa_artifact(qa_score)
+    context.update(qa_score)
+    context.save()
+
+    return context.path
 
 
-# Bandpass Solve
+# Bandpass Solution
 @task(tags=["flagging"])
 def autoflag_bandpass(bp_data):
     sleep_placeholder()
 
 
+@task(retries=3, tags=["io"])
+def query_calmod(bandpass_calibrator):
+    if randomly_fail():
+        raise Exception("Query calmod failed")
+    else:
+        return fake_data((100, 100))
+
+
 @task(tags=["heuristics"])
-def calmod():
+def calmod(bandpass_calibrator):
     sleep_placeholder()
 
 
@@ -199,18 +250,37 @@ def bandpass_qa_score(bp_data) -> dict:
 
 @flow(log_prints=True)
 def bandpass_solve(bpcal):
+    """
+    Do the bandpass solution
+    """
     logger = get_run_logger()
     logger.info(f"Starting bandpass solve for {bpcal}")
 
-    load_context()
-    autoflag_bandpass(bpcal)
-    calmod()
-    save_model_vis(bpcal)
-    amp_phase_solve(bpcal)
-    qa = bandpass_qa_score(bpcal)
-    update_context(qa)
-    logger.info(f"Bandpass QA Scores: {qa['bandpass_qa_score']}")
-    create_qa_artifact(qa)
+    context = Context.load()
+
+    logger.info(f"Flagging bandpass data for {bpcal}")
+    flagged_bandpass = autoflag_bandpass(bpcal)
+
+    logger.info(f"Querying calmod for {bpcal}")
+    query_calmod(bpcal)
+
+    logger.info(f"Calmod for {bpcal}")
+    calmod(bpcal)
+
+    logger.info(f"Saving model vis for {bpcal}")
+    flagged_bandpass_saved_model = save_model_vis(flagged_bandpass)
+
+    logger.info(f"Calculating bandpass solution for {bpcal}")
+    bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model)  # TODO: expand this out to the solver loop
+    qa_score = bandpass_qa_score(bandpass_solution)
+
+    logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
+    if qa_score['bandpass_qa_score'] < 0.67:
+        emit_event(event="low_qa.bandpass.event!", resource={"prefect.resource.id": "test.id"})
+
+    context.update(qa_score)
+    context.save()
+    create_qa_artifact(qa_score)
 
 
 # Time Gain Solve
@@ -249,7 +319,7 @@ def gaincal_qa_score(gaincal) -> dict:
 
 
 @task(tags=["heuristics"])
-def all_spws_high_snr(spws: List[int]) -> bool:
+def all_spws_high_snr(spws: List[int], snr) -> bool:
     """
     Return True if all spws have high SNR.
     """
@@ -257,7 +327,7 @@ def all_spws_high_snr(spws: List[int]) -> bool:
 
 
 @task(tags=["heuristics"])
-def any_spw_high_snr(spws: List[int]) -> bool:
+def any_spw_high_snr(spws: List[int], snr) -> bool:
     """
     Return True if any spw has high SNR.
     """
@@ -269,20 +339,30 @@ def time_gain_solve(gaincal):
     logger = get_run_logger()
     logger.info(f"Starting time gain solve for {gaincal}")
 
-    load_context()
+    context = Context.load()
     spws = [0, 1, 2, 3]  # pretend these come from the load_context() call
-    calc_snr(gaincal)
-    if all_spws_high_snr(spws):
+
+    logger.info(f"Calculating SNR for {gaincal}")
+    snr = calc_snr(gaincal)
+
+    if all_spws_high_snr(spws, snr):
         per_spw_gain_soln(gaincal)
-    elif any_spw_high_snr(spws):
+    elif any_spw_high_snr(spws, snr):
         best_spw_gain_soln(gaincal)
     else:
-        combinespw_gain_soln()
-    global_gain_soln(gaincal)
-    qa = gaincal_qa_score(gaincal)
-    update_context(qa)
+        combinespw_gain_soln(gaincal)
+    result = global_gain_soln(gaincal)
+
+    qa = gaincal_qa_score(result)
+
+    if qa['gaincal_qa_score'] < 0.67:
+        emit_event(event="low_qa.gaincal.event!", resource={"prefect.resource.id": "test.id"})
+
     logger.info(f"Gaincal QA Scores: {qa['gaincal_qa_score']}")
     create_qa_artifact(qa)
+
+    context.update(qa)
+    context.save()
 
 
 # Image Calibrators
@@ -307,13 +387,24 @@ def export_continuum_images_to_archive(calibrator):
 def image_calibrator(calibrator):
     logger = get_run_logger()
     logger.info(f"Imaging {calibrator}")
-    load_context()
-    apply_cal(calibrator)
-    image_continuum(calibrator)
-    result = export_continuum_images_to_archive(calibrator)
-    logger.info(f"Exported continuum images to archive: {result}")
-    update_context(result)
-    create_qa_artifact(fake_qa_score('imaging_qa_score'))
+
+    context = Context.load()
+    calibrated_vis = apply_cal(calibrator)
+
+    logger.info("Imaging calibrator: {calibrator}")
+    images = image_continuum(calibrated_vis)
+
+    logger.info(f"Exporting continuum images to archive: {images}")
+    result = export_continuum_images_to_archive(images)
+
+    qa_score = fake_qa_score('imaging_qa_score', result=result)
+
+    if qa_score['imaging_qa_score'] < 0.67:
+        emit_event(event="low_qa.imaging.event!", resource={"prefect.resource.id": "test.id"})
+
+    create_qa_artifact(qa_score)
+    context.update(qa_score)
+    context.save()
 
 # Target Data Import and Prep
 
@@ -327,4 +418,7 @@ def image_calibrator(calibrator):
 
 
 if __name__ == "__main__":
+    #calibrator_data_import_and_prep.serve(  # Flow to deploy
+    #    name="import data and prep",  # Name of the deployment
+    #)
     calibration_pipeline_example()
