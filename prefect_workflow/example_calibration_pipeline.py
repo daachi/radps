@@ -1,9 +1,15 @@
 from prefect import flow, task
+
 from prefect.artifacts import create_markdown_artifact
 from prefect.deployments import run_deployment
 from prefect.events import emit_event
+from prefect.artifacts import (
+    create_markdown_artifact,
+    create_table_artifact,
+    create_image_artifact
+    )
 from prefect.logging import get_run_logger
-
+z
 
 from typing import List
 
@@ -86,20 +92,44 @@ def fake_qa_score(name: str = None, **kwargs) -> dict:
         return {'qa_score': score}
 
 
-def create_qa_artifact(qa_scores: dict):
+def create_qa_artifact(qa_scores: dict, artifact_type=None):
     """
     Create a markdown artifact with QA scores.
     """
-    qa_markdown = "# QA Scores:"
 
-    for key, value in qa_scores.items():
-        qa_markdown += f"\n- {key}: {value:.2f}"
+    if artifact_type == "table":
 
-    create_markdown_artifact(
-        key="qa-report",
-        markdown=qa_markdown,
-        description="QA Report",
-    )
+        qa_table = []
+
+        for key in qa_scores.keys():
+            qa_table.append({"measure": key, "result" : qa_scores[key]})
+
+        create_table_artifact(
+            key="qa-report",
+            table=qa_table,
+            description="QA Report",
+        )
+
+    if artifact_type == "image":
+        image = qa_scores["url"]
+
+        create_image_artifact(
+            image_url = image,
+            description = "qa-report"
+            )
+
+    else:
+        # just fall back to the original behavior
+        qa_markdown = "# QA Scores:"
+        for key, value in qa_scores.items():
+            qa_markdown += f"\n- {key}: {value}"
+
+        create_markdown_artifact(
+            key="qa-report",
+            markdown=qa_markdown,
+            description="QA Report",
+        )
+
 
 
 def randomly_fail() -> bool:
