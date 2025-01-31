@@ -243,7 +243,7 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     dirty_cube = make_dirty_cube(calibrated_data)
 
     # just write a slice of our fake image to disk
-    imsave("image.png", dirty_cube["data"]["source_1"][:,:,0,0].compute())
+    imsave("image.png", calibrated_data["data"]["source_1"][:,:,0,0].compute())
     stage_result["url"] = pathlib.Path("image.png").resolve().as_uri()
     create_qa_artifact(stage_result, artifact_type="image")
 
