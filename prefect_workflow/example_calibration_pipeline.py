@@ -24,7 +24,7 @@ import pickle
 
 # TODO: if we keep the 'tags' thing, define tags for each rather than copy-paste strings
 
-
+# NOTE: Re-use between stages
 class Context:
     path = "context.pkl"
 
@@ -48,6 +48,9 @@ class Context:
 # parent flow, in the future we should consider using separate
 # deployments for each step in the pipeline as recommended in
 # https://docs.prefect.io/v3/develop/write-flows
+#
+# NOTE: This will likely be replaced with the new top-level flow, but we could also move it to pipeline.py so we also have the 
+# option to run just the imaging or just the calibration pipeline. 
 @flow(log_prints=True)
 def calibration_pipeline_example():
     """
@@ -71,7 +74,7 @@ def calibration_pipeline_example():
     context = Context.load()
     create_qa_artifact(context.qa_scores)
 
-
+# NOTE: Reused betwen calibration pipeline stages, but not elsewhere as data formats are different.
 def fake_data(dimensions: tuple) -> dict:
     """
     Create fake data
@@ -79,7 +82,7 @@ def fake_data(dimensions: tuple) -> dict:
     data = np.random.rand(*dimensions)
     return data
 
-
+# NOTE: Definitely reusable acorss stages
 def fake_qa_score(name: str = None, **kwargs) -> dict:
     """
     Create a fake QA score withith a random value.
@@ -90,7 +93,7 @@ def fake_qa_score(name: str = None, **kwargs) -> dict:
     else:
         return {'qa_score': score}
 
-
+# NOTE: Reusable across stages
 def create_qa_artifact(qa_scores: dict, artifact_type=None):
     """
     Create a markdown artifact with QA scores.
@@ -130,7 +133,7 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         )
 
 
-
+# NOTE: Reusable across stages
 def randomly_fail() -> bool:
     """
     Randomly return True or False.
@@ -140,6 +143,7 @@ def randomly_fail() -> bool:
     return random.choice([True, False])
 
 
+# NOTE: could be reused across stages if desired
 def sleep_placeholder():
     """
     Sleep for 3 seconds. Intended to represent
@@ -147,23 +151,7 @@ def sleep_placeholder():
     """
     time.sleep(3)
 
-
-@task(tags=["util"])
-def update_context(input_dict: dict):
-    """
-    Save the current state of the pipeline.
-    """
-    sleep_placeholder()
-
-
-@task(tags=["util"])
-def load_context():
-    """
-    Load the saved state of the pipeline.
-    """
-    sleep_placeholder()
-
-
+# NOTE: could be combined with the similar task from target import
 @task(retries=3, tags=["io"])
 def import_data_from_archive(data) -> dict:
     """
@@ -176,30 +164,32 @@ def import_data_from_archive(data) -> dict:
         return fake_data((1000, 1000))
 
 
+# NOTE: could be combined with the similar task from target flagging
 @task(tags=["flagging"])
 def apply_online_flags(data):
     sleep_placeholder()
     return data
 
-
+# NOTE: could be combined with the similar task from target flagging
 @task(tags=["io"])
 def get_antpos_info(data):
     sleep_placeholder()
     return fake_data((100, 100))
 
-
+# NOTE: could be combined with the similar task from target flagging
 @task(tags=["heuristics"])
 def create_antpos_table(antenna_position_corrections, data):
     sleep_placeholder()
     return fake_data((100, 100))
 
-
+# NOTE: could be combined with the similar task from target flagging
 @task(tags=["calibration"])
 def apply_antpos(table, data):
     sleep_placeholder()
     return fake_data((1000, 1000))
 
 
+# NOTE: could be combined with the flow to import and prep target data
 @flow(log_prints=True)
 def calibrator_data_import_and_prep(calibrator):
     """
@@ -240,11 +230,12 @@ def calibrator_data_import_and_prep(calibrator):
 
 
 # Bandpass Solution
+# NOTE: stage-specific
 @task(tags=["flagging"])
 def autoflag_bandpass(bp_data):
     sleep_placeholder()
 
-
+# NOTE: stage-specific
 @task(retries=3, tags=["io"])
 def query_calmod(bandpass_calibrator):
     if randomly_fail():
@@ -252,22 +243,23 @@ def query_calmod(bandpass_calibrator):
     else:
         return fake_data((100, 100))
 
-
+# NOTE: stage-specific
 @task(tags=["heuristics"])
 def calmod(bandpass_calibrator):
     sleep_placeholder()
 
-
+# NOTE: stage-specific
 @task(tags=["imaging"])
 def save_model_vis(bp_data):
     sleep_placeholder()
 
 
+# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["calibration"])
 def amp_phase_solve(bp_data):
     sleep_placeholder()
 
-
+# NOTE: stage-specific
 @task(tags=["qa"])
 def bandpass_qa_score(bp_data) -> dict:
     """
@@ -276,7 +268,7 @@ def bandpass_qa_score(bp_data) -> dict:
     sleep_placeholder()
     return fake_qa_score('bandpass_qa_score')
 
-
+# NOTE: stage-specific
 @flow(log_prints=True)
 def bandpass_solve(bpcal):
     """
@@ -313,31 +305,32 @@ def bandpass_solve(bpcal):
 
 
 # Time Gain Solve
+# NOTE: stage-specific
 @task(tags=["heuristics"])
 def calc_snr(gaincal):
     sleep_placeholder()
 
-
+# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["calibration"])
 def per_spw_gain_soln(gaincal):
     sleep_placeholder()
 
-
+# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["calibration"])
 def best_spw_gain_soln(gaincal):
     sleep_placeholder()
 
-
+# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["calibration"])
 def combinespw_gain_soln(gaincal):
     sleep_placeholder()
 
-
+# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["calibration"])
 def global_gain_soln(gaincal):
     sleep_placeholder()
 
-
+# NOTE: stage-specific
 @task(tags=["qa"])
 def gaincal_qa_score(gaincal) -> dict:
     """
@@ -346,7 +339,7 @@ def gaincal_qa_score(gaincal) -> dict:
     sleep_placeholder()
     return fake_qa_score('gaincal_qa_score')
 
-
+# NOTE: stage-specific
 @task(tags=["heuristics"])
 def all_spws_high_snr(spws: List[int], snr) -> bool:
     """
@@ -355,6 +348,7 @@ def all_spws_high_snr(spws: List[int], snr) -> bool:
     return random.choice([True, False])
 
 
+# NOTE: stage-specific
 @task(tags=["heuristics"])
 def any_spw_high_snr(spws: List[int], snr) -> bool:
     """
@@ -363,6 +357,7 @@ def any_spw_high_snr(spws: List[int], snr) -> bool:
     return random.choice([True, False])
 
 
+# NOTE: stage-specific
 @flow(log_prints=True)
 def time_gain_solve(gaincal):
     logger = get_run_logger()
@@ -400,11 +395,13 @@ def apply_cal(calibrator):
     sleep_placeholder()
 
 
+# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["imaging"])
 def image_continuum(calibrator):
     sleep_placeholder()
 
 
+# NOTE: should be merged with code to export target cube images to the archive
 @task(retries=3, tags=["io"])
 def export_continuum_images_to_archive(calibrator):
     sleep_placeholder()
@@ -413,6 +410,7 @@ def export_continuum_images_to_archive(calibrator):
 
 
 @flow(log_prints=True)
+# NOTE: stage-specific
 def image_calibrator(calibrator):
     logger = get_run_logger()
     logger.info(f"Imaging {calibrator}")
