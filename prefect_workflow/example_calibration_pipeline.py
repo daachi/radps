@@ -9,7 +9,6 @@ from prefect.artifacts import (
     create_image_artifact
     )
 from prefect.logging import get_run_logger
-z
 
 from typing import List
 
