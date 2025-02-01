@@ -10,7 +10,7 @@ from stage_image_cont_selfcal import (
 )
 
 @flow
-def stage_image_perspw_cont(inp,src='target'):
+def image_perspw_cont(inp,src='target'):
     """
     per-SPW continuum imaging 
     """
@@ -23,14 +23,17 @@ def stage_image_perspw_cont(inp,src='target'):
         res2 = applymodel(caltable, inp, src='target')
     # do per spw imaging (solve per spw and field)
     image_data = solve(res, src='target', combine='scan', soltype='imaging')
+
     # export data
-    print('image_data=', image_data)
     archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
     #store context
     stored_context = store_context(archived_data)
     return stored_context
 
-inp = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
-             'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
-             'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
-stage_image_perspw_cont(inp)
+
+if __name__ == '__main__':
+
+    inp = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
+           'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
+           'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
+    image_perspw_cont(inp)
