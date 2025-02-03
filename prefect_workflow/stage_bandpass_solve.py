@@ -6,13 +6,11 @@ from core import fake_data, sleep_placeholder, randomly_fail, create_qa_artifact
 
 
 # Bandpass Solution
-# NOTE: stage-specific
 @task(tags=["flagging"])
 def autoflag_bandpass(bp_data):
     sleep_placeholder()
 
 
-# NOTE: stage-specific
 @task(retries=3, tags=["io"])
 def query_calmod(bandpass_calibrator):
     if randomly_fail():
@@ -21,25 +19,21 @@ def query_calmod(bandpass_calibrator):
         return fake_data((100, 100))
 
 
-# NOTE: stage-specific
 @task(tags=["heuristics"])
 def calmod(bandpass_calibrator):
     sleep_placeholder()
 
 
-# NOTE: stage-specific
 @task(tags=["imaging"])
 def save_model_vis(bp_data):
     sleep_placeholder()
 
 
-# NOTE: stage-specific, but could use solver from Tak's work
 @task(tags=["calibration"])
 def amp_phase_solve(bp_data):
     sleep_placeholder()
 
 
-# NOTE: stage-specific
 @task(tags=["qa"])
 def bandpass_qa_score(bp_data) -> dict:
     """
@@ -49,7 +43,6 @@ def bandpass_qa_score(bp_data) -> dict:
     return fake_qa_score('bandpass_qa_score')
 
 
-# NOTE: stage-specific
 @flow(log_prints=True)
 def bandpass_solve(bpcal):
     """

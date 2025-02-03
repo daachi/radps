@@ -17,7 +17,7 @@ def image_continuum(calibrator):
 
 
 # NOTE: should be merged with code to export target cube images to the archive
-@task(retries=3, tags=["io"])
+@task(retries=4, tags=["io"])
 def export_continuum_images_to_archive(calibrator):
     sleep_placeholder()
     if randomly_fail():
@@ -25,7 +25,6 @@ def export_continuum_images_to_archive(calibrator):
 
 
 @flow(log_prints=True)
-# NOTE: stage-specific
 def image_calibrator(calibrator):
     logger = get_run_logger()
     logger.info(f"Imaging {calibrator}")

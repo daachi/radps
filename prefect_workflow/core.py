@@ -10,7 +10,6 @@ from prefect.artifacts import (
     )
 
 
-# NOTE: Re-use between stages
 class Context:
     path = "context.pkl"
 
@@ -31,7 +30,6 @@ class Context:
             return pickle.load(f)
 
 
-# NOTE: Reused betwen calibration pipeline stages, but not elsewhere as data formats are different.
 def fake_data(dimensions: tuple) -> dict:
     """
     Create fake data
@@ -40,7 +38,6 @@ def fake_data(dimensions: tuple) -> dict:
     return data
 
 
-# NOTE: Definitely reusable acorss stages
 def fake_qa_score(name: str = None, **kwargs) -> dict:
     """
     Create a fake QA score withith a random value.
@@ -52,7 +49,6 @@ def fake_qa_score(name: str = None, **kwargs) -> dict:
         return {'qa_score': score}
 
 
-# NOTE: Reusable across stages
 def create_qa_artifact(qa_scores: dict, artifact_type=None):
     """
     Create a markdown artifact with QA scores.
@@ -75,8 +71,8 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         image = qa_scores["url"]
 
         create_image_artifact(
-            image_url = image,
-            description = "qa-report"
+            image_url=image,
+            description="qa-report"
             )
 
     else:
@@ -92,24 +88,18 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         )
 
 
-# NOTE: Reusable across stages
 def randomly_fail() -> bool:
     """
     Randomly return True or False.
     Intended to test the ability to handle failures.
     As is, this is an unrealistically high failure rate.
     """
-#    return random.choice([True, False])
-    return False
+    return random.choice([True, False])
 
 
-# NOTE: could be reused across stages if desired
-def sleep_placeholder(duration=None):
+def sleep_placeholder(duration: float = 3.0):
     """
     Sleep for some seconds. Intended to represent
-    a quick task runtime.
+    a task runtime. Defaults to 3 seconds.
     """
-    if duration is not None:
-        time.sleep(duration)
-    else:
-        time.sleep(3)
+    time.sleep(duration)
