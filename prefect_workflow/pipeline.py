@@ -1,4 +1,6 @@
 from prefect import flow
+from prefect.deployments import run_deployment
+from prefect import exceptions
 
 from stage_calibrator_import_and_prep import calibrator_data_import_and_prep
 from stage_bandpass_solve import bandpass_solve
@@ -22,7 +24,16 @@ def pipeline():
     """
     # Calibrator Data Import and Prep
     calibrators = ["J1752-2956", "J1851+0035"]
-    calibrator_data_import_and_prep(calibrators)
+    for calibrator in calibrators:
+        try:
+            run_deployment(
+                name="calibrator-data-import-and-prep/import data and prep",
+                parameters={"calibrator": calibrator},
+                timeout=0,
+                )
+        except exceptions.ObjectNotFound:
+            print(f"Failed to run deployment for calibrator {calibrator}. Running in serial.")
+            calibrator_data_import_and_prep(calibrator)
 
     # Bandpass Solve
     bandpass_solve(calibrators[0])
@@ -32,7 +43,15 @@ def pipeline():
 
     # Image Calibrators
     for source in calibrators:
-        image_calibrator(source)
+        try:
+            run_deployment(
+                name="image-calibrator/image calibrator and export to archive",
+                parameters={"calibrator": calibrator},
+                timeout=0
+                )
+        except exceptions.ObjectNotFound:
+            print(f"Failed to run deployment for calibrator {calibrator}. Running in serial.")
+            image_calibrator(source)
 
     # Target Data Import and Prep
     target_data = extract_transform_load("source_1")

@@ -59,7 +59,7 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         qa_table = []
 
         for key in qa_scores.keys():
-            qa_table.append({"measure": key, "result" : qa_scores[key]})
+            qa_table.append({"measure": key, "result": qa_scores[key]})
 
         create_table_artifact(
             key="qa-report",
@@ -79,7 +79,7 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         # just fall back to the original behavior
         qa_markdown = "# QA Scores:"
         for key, value in qa_scores.items():
-            qa_markdown += f"\n- {key}: {value}"
+            qa_markdown += f"\n- {key}: {value:0.2f}"
 
         create_markdown_artifact(
             key="qa-report",
