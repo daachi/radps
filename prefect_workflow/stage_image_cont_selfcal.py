@@ -2,12 +2,12 @@
 
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
-from time import sleep
-from core import fake_qa_score, create_qa_artifact
+from core import fake_qa_score, create_qa_artifact, sleep_placeholder
 ns = 1
 
 # Re-usable across stages?
 def generate_image_datashape(imsize,nchan=1,npol=1)-> dict:
+    """ Generate a fake image data shape """
     imageshape = {'x':imsize, 'y':imsize, 'nchan':nchan, 'npol':npol}
     return imageshape
 
@@ -31,78 +31,78 @@ def generate_flow_name() -> str:
         typeparam = flow_params['soltype']
     return f"{typeparam}_{flow_name}"
 
-# Imaging stage specific
+# Imaging stage specific functions
 @task
-def load_context(inp,src):
-    """load and select data """
+def load_context(data,src):
+    """Load and select data """
     seldata = dict()
-    # assume here inp is a data structure without any data
-    if isinstance(inp,dict) and src in inp:
-        seldata[src] = dict(inp[src])
+    # assume here data is a data structure without any data
+    if isinstance(data,dict) and src in data:
+        seldata[src] = dict(data[src])
     return seldata
 
 @task
-def data_prep(inp):
-    sleep(ns)
-    return inp
+def data_prep(data):
+    sleep_placeholder(1.0)
+    return data 
 
 @task
-def calc_heuristics(inp, type=''):
+def calc_heuristics(data, type=''):
     """Calculate heuristics """
-    sleep(ns)
+    sleep_placeholder(1.0) 
     if type == 'boolean':
         return True
     else:
-        return inp
+        return data 
 
 
 @task # in-algorithm parallelism
-def calc_update_direction(inp, id):
+def calc_update_direction(data, id):
     """Calculte update direction"""
-    sleep(ns)
+    sleep_placeholder(1.0)
     return 
 
 # following tasks probably need to be flows as it involves parallelism
 @task # in-algorithm parallelism
-def update_model(inp, id=0):
-    """update model""" 
-    sleep(ns)
+def update_model(data, id=0):
+    """Update model""" 
+    sleep_placeholder(1.0)
     return
 
 @task # in-algorithm parallelism
-def check_converge(inp, id=0):
-    """check convergence"""
-    sleep(ns)
+def check_converge(data, id=0):
+    """Check convergence"""
+    sleep_placeholder(1.0)
     return
 
 @task
 def applymodel(inp, datashape, src):
    """ Apply calibration model """ 
-   sleep(ns)
+   sleep_placeholder(1.0)
    return datashape
 
 @flow
 def store_context(inp):
     """Store context"""
-    sleep(ns)
+    sleep_placeholder(1.0)
     ret = inp
     return ret
 
 @task
 def archive_export_func(inp,id=0):
-    """archive and export results"""
-    sleep(ns)
+    """Archive and export results"""
+    sleep_placeholder(1.0)
     return
 
 @flow
-def archive_export(inp, src, paraxes='fieldandspw') -> list:
+def archive_export(data, src, paraxes='fieldandspw') -> list:
     """Export and archive results
     parallize by field and spw ('fieldandspw')
     or 
     parallize by field ('field')
     """
-    n_field = inp[src]['n_field']
-    n_spw = inp[src]['n_spw']
+    n_field = data[src]['n_field']
+    n_spw = data[src]['n_spw']
     if paraxes == 'fieldandspw':
         npar = n_field*n_spw
     else:
@@ -110,18 +110,18 @@ def archive_export(inp, src, paraxes='fieldandspw') -> list:
 
     exp_par = []
     for i in range(0, npar):
-        exp_par.append(archive_export_func.submit(inp,i))
-    sleep(ns)
+        exp_par.append(archive_export_func.submit(data,i))
+    sleep_placeholder(1.0)
     return [j.result() for j in exp_par]
 
 
 @flow(flow_run_name=generate_flow_name)
-def solve(inp, src, combine=None, niter=2, soltype='calibration'):
+def solve(data, src, combine=None, niter=2, soltype='calibration'):
     """
     general solver
       soltype determines main output result type either caltable/visibilities or images   
     """
-    datashape = dict(inp)
+    datashape = dict(data)
     n_field = datashape[src]['n_field']
     n_spw = datashape[src]['n_spw']
     n_scan = datashape[src]['n_scan']
@@ -130,7 +130,7 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
         if 'n_chan' in datashape[src]:
             n_chan = datashape[src]['n_chan']
 
-    prep = data_prep(inp)
+    prep = data_prep(data)
     cal_par = []
     ret = {} 
     if combine is None:
@@ -150,7 +150,7 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
         else:  # combine spw and scan
             n_par = n_field
             n_comb = n_spw*n_scan
-            ret = inp
+            ret = data 
         model_par = [] # calibration solutions(caltable) or images
         for i in range(0, n_par): ## separate solution for each of n_par
             model = prep
@@ -165,17 +165,19 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
         if ret==dict() and type == 'calibration':
             ret = model_par
         elif 'imaging' in soltype:
+            srcdata = dict()
+            srcdata[src] = dict(datashape[src])
             if soltype == 'cube_imaging':
-                print('n_chan==', n_chan)
                 ret = generate_image_datashape(512,nchan=n_chan) 
             else:
                 ret = generate_image_datashape(512)
-            ret.update(dict(inp))
+            ret.update(srcdata)
     return ret
 
 @flow (description='Continuum imaging with self-calibration stage')
-def image_cont_selfcal(inp,src='target', doselfcal=False):
-    """workflow for continuum imaging with self-calibration"""
+def image_cont_selfcal(data, src='target', doselfcal=False):
+    """Continuum imaging with self-calibration"""
+    print("Stating continuum imaging with self-calibration")
 
     # load target calibrated visibility data 
     calibrated_target_vis = load_context(inp,src=src)
@@ -191,6 +193,7 @@ def image_cont_selfcal(inp,src='target', doselfcal=False):
     selfcalresult = {}
     selfcal_hueristics = True
     count = 0
+    lastiter = 0
     if qa_result and doselfcal: # QA passes and selfcal is requested
          # selfcal iteration loop
         while(selfcal_hueristics):
@@ -202,30 +205,39 @@ def image_cont_selfcal(inp,src='target', doselfcal=False):
             # Save model visibilities
             updated_model_data = applymodel(updated_data,inp,src='target')
             #qascore = calc_qa(updated_image)
-            qa_score = fake_qa_score('selfcal_qa_score')
+            qa_return = fake_qa_score('image_SNR')
+            snr = dict()
+            snr['image_SNR'] = 10*qa_return['image_SNR'] # make fake SNR using qa value
             selfcalresult[count]=dict()
             selfcalresult[count]['updated_image']=updated_image
-            selfcalresult[count]['QA'] = qa_score
+            print('snr=',snr)
+            selfcalresult[count]['QA'] = snr 
             # Currently, selfcal_hueristics is a boolean but in real case
             # this should include new parameters to solve in next self-cal cycle....
             selfcal_hueristics = calc_heuristics(selfcalresult,type='boolean')   
             # if qascore and/or selfcal_hueristics need to backout 
             # to previous images/vis data as final result
             # get out of loop for now (assuming 'stop selfcal' condition reached) 
-            if count == 2: 
-                print('Iteration count limit reached for selfcal loop')
-                selfcal_hueristics = False
-            count += 1
+            if count != 0:
+                if selfcalresult[count]['QA']['image_SNR'] < selfcalresult[count-1]['QA']['image_SNR']:
+                    selfcal_hueristics = False # stop selfcal as SNR degraded.
+                    lastiter = count-1
+                elif count == 2: 
+                    print("Iteration count limit reached for selfcal loop")
+                    lastiter = count
+                    selfcal_hueristics = False
+            else:
+                count += 1
     else:
-        print('Self-calibration not performed.')        
+        print("Self-calibration not performed.")        
         return 'skipped'
     # Usually it requires to rollback to previous images and cal solutions when exit from
     # selfcal loop and before saving the results. 
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
-    archived_data = archive_export(selfcalresult[2]['updated_image'],src='target',paraxes='field')
-    #stored_context = store_context(archived_data)
-    create_qa_artifact(qa_score)
+    archived_data = archive_export(selfcalresult[lastiter]['updated_image'],src='target',paraxes='field')
+    stored_context = store_context(archived_data)
+    create_qa_artifact(selfcalresult[lastiter]['QA'])   
     return updated_image
 
 
