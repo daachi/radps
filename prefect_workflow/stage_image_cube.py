@@ -4,12 +4,18 @@ from stage_image_cont_selfcal import (
     load_context,  
     solve,  
     calc_heuristics, 
-    calc_qa,
     archive_export, 
     store_context,
 )
+from core import fake_qa_score, create_qa_artifact, Context
 from time import sleep
 ns = 1
+
+@task
+def cubeimage_qa_score(image_data):
+    """ Calculate QA score for cube images"""
+    sleep(ns)
+    return fake_qa_score('cubeimage_qa_score')
 
 @task
 def uvcontsub(inp, chunkid=0, spw_for_trigger_partial_failure=-1 ):
@@ -26,6 +32,7 @@ def uvcontsub(inp, chunkid=0, spw_for_trigger_partial_failure=-1 ):
 @task
 def uv_continuum_subtraction(inp):
     """ Perform continuum subraction in uv domain"""
+    print('UV continuum subtraction in parallel')
     # Parameters to trigger some failure modes
     # no failure
     # raise_execption, failed_spw = True, -1
@@ -76,19 +83,18 @@ def image_target_cube(inp):
 
             image_data = solve(uvcontsub_res['datashape'], src='target', 
                           combine='scan', soltype='cube_imaging')
-            qa_result = calc_qa(image_data)
+            #qa_result = calc_qa(image_data)
+            qa_result = cubeimage_qa_score(image_data)
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
             stored_context = store_context(archived_data)
+            qa_result['image_data']=image_data
+            create_qa_artifact(qa_result)
         except Exception as e:
             print(f"Cube imaging failed with error: {e}")
             stored_context = inp    
     return stored_context
 
 
-#inp = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1}, 
-#       'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4}, 
-#       'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
-#stage_image_target_cube(inp)
 if __name__ == '__main__':
     inp = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},

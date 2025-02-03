@@ -3,7 +3,7 @@
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
 from time import sleep
-from example_calibration_pipeline import fake_qa_score, create_qa_artifact
+from core import fake_qa_score, create_qa_artifact
 ns = 1
 
 # Re-usable across stages?
@@ -12,7 +12,7 @@ def generate_image_datashape(imsize,nchan=1,npol=1)-> dict:
     return imageshape
 
 def generate_vis_datashape(addchan=False) -> dict:
-    """ Return predefine vis data shape """
+    """ Return predefined vis data shape """
     datashape = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
                  'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
                  'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
@@ -21,18 +21,20 @@ def generate_vis_datashape(addchan=False) -> dict:
         datashape['target']['n_nchan'] = nchan
     return datashape 
     
-# Re-usable across stage once with modification
-def generate_flow_name():
-    """ generate flow name based on runtime info"""
+# Can be re-used across stages but need to be modified to be useful   
+def generate_flow_name() -> str:
+    """ Generate flow name based on runtime info"""
     flow_name = flow_run.flow_name 
     flow_params = flow_run.parameters
-    typeparam = flow_params['soltype']
+    # solove flow specific parameter 
+    if 'soltype' in flow_params:
+        typeparam = flow_params['soltype']
     return f"{typeparam}_{flow_name}"
 
-# Re-usable across stages but execpt inp (data) to be in a specific format``
+# Imaging stage specific
 @task
 def load_context(inp,src):
-    """load context"""
+    """load and select data """
     seldata = dict()
     # assume here inp is a data structure without any data
     if isinstance(inp,dict) and src in inp:
@@ -42,13 +44,6 @@ def load_context(inp,src):
 @task
 def data_prep(inp):
     sleep(ns)
-    return inp
-
-@task 
-def calc_qa(inp):
-    """Calculate QA metrics"""
-    sleep(ns)
-    #pass or fail
     return inp
 
 @task
@@ -164,8 +159,8 @@ def solve(inp, src, combine=None, niter=2, soltype='calibration'):
                 res_par=[]
                 for j in range(0,n_comb): ## In-algorithm parallelism 
                     res_par.append(calc_update_direction.submit(model,j)) ## caltable pre-apply (or model vis prediction) happens on the same parallelization axis as the update_direction calculation.
-                modelc = update_model(res_par,i)
-                model = check_converge(modelc,i)
+                modelc = update_model.submit(res_par,i)
+                model = check_converge(modelc.result(),i)
             model_par.append(model)
         if ret==dict() and type == 'calibration':
             ret = model_par
@@ -208,7 +203,6 @@ def image_cont_selfcal(inp,src='target', doselfcal=False):
             updated_model_data = applymodel(updated_data,inp,src='target')
             #qascore = calc_qa(updated_image)
             qa_score = fake_qa_score('selfcal_qa_score')
-            print('count=',count)
             selfcalresult[count]=dict()
             selfcalresult[count]['updated_image']=updated_image
             selfcalresult[count]['QA'] = qa_score
@@ -229,11 +223,10 @@ def image_cont_selfcal(inp,src='target', doselfcal=False):
     # selfcal loop and before saving the results. 
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
-    print('selfcalresult=',selfcalresult)
     archived_data = archive_export(selfcalresult[2]['updated_image'],src='target',paraxes='field')
-    stored_context = store_context(archived_data)
+    #stored_context = store_context(archived_data)
     create_qa_artifact(qa_score)
-    return stored_context
+    return updated_image
 
 
 if __name__ == "__main__":
@@ -241,4 +234,4 @@ if __name__ == "__main__":
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
              'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
    #task_solve(inp,datashape,src='target')
-   stage_image_cont_selfcal(inp, doselfcal=True)
+   image_cont_selfcal(inp, doselfcal=True)
