@@ -1,13 +1,45 @@
 from prefect import flow, task
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
-
+from prefect.flow_runs import wait_for_flow_run
+from prefect.deployments import run_deployment
 
 from core import fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score
 
 
+@flow(log_prints=True)
+async def run_calibrator_import_and_prep_in_parallel(calibrators):
+    """
+    Run the calibrator import and prep stage in parallel.
+    This is a workaround for Prefect's lack of direct support 
+    for a flow.submit() analogous to task.submit()
+    """
+    sub_flows = []
+    results = []
+    sub_flows.append(
+        await run_deployment(
+                name="calibrator-data-import-and-prep/import data and prep",
+                parameters={"calibrator": '1'},
+                timeout=0,
+                )
+    )
+    sub_flows.append(
+        await run_deployment(
+                name="calibrator-data-import-and-prep/import data and prep",
+                parameters={"calibrator": '2'},
+                timeout=0,
+                )
+    )
+
+    results = []
+    for flow_run in sub_flows:
+        await wait_for_flow_run(flow_run.id, poll_interval=5)
+        results.append(fake_data((100,100)))
+    return results
+
+
 # NOTE: could be combined with the similar task from target import
-@task(retries=3, tags=["io"])
+@task(retries=4, tags=["io"])
 def import_data_from_archive(data) -> dict:
     """
     Simulate importing data from the archive.

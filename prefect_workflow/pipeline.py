@@ -1,8 +1,10 @@
+import asyncio
+
 from prefect import flow
 from prefect.deployments import run_deployment
 from prefect import exceptions
 
-from stage_calibrator_import_and_prep import calibrator_data_import_and_prep
+from stage_calibrator_import_and_prep import calibrator_data_import_and_prep, run_calibrator_import_and_prep_in_parallel
 from stage_bandpass_solve import bandpass_solve
 from stage_time_gain_solve import time_gain_solve
 from stage_image_calibrators import image_calibrator
@@ -17,6 +19,7 @@ from stage_image_cont_selfcal import generate_vis_datashape
 # of "An Example RADPS Workflow Decomposition"
 
 
+
 @flow(log_prints=True)
 def pipeline():
     """
@@ -24,29 +27,28 @@ def pipeline():
     """
     # Calibrator Data Import and Prep
     calibrators = ["J1752-2956", "J1851+0035"]
-    for calibrator in calibrators:
-        try:
-            run_deployment(
-                name="calibrator-data-import-and-prep/import data and prep",
-                parameters={"calibrator": calibrator},
-                timeout=0,
-                )
-        except exceptions.ObjectNotFound:
-            print(f"Failed to run deployment for calibrator {calibrator}. Running in serial.")
-            calibrator_data_import_and_prep(calibrator)
+
+    try:
+        imported_calibrators = asyncio.run(
+            run_calibrator_import_and_prep_in_parallel(calibrators))
+    except exceptions.ObjectNotFound:
+        print("Failed to run deployment for calibrator import. Running in serial.")
+        imported_calibrators = []
+        for calibrator in calibrators:
+            imported_calibrators.append(calibrator_data_import_and_prep(calibrator))
 
     # Bandpass Solve
-    bandpass_solve(calibrators[0])
+    bandpass_solve(imported_calibrators[0])
 
     # Time Gain Solve
-    time_gain_solve(calibrators[1])
+    time_gain_solve(imported_calibrators[1])
 
     # Image Calibrators
     for source in calibrators:
         try:
             run_deployment(
                 name="image-calibrator/image calibrator and export to archive",
-                parameters={"calibrator": calibrator},
+                parameters={"calibrator": source},
                 timeout=0
                 )
         except exceptions.ObjectNotFound:
