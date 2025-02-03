@@ -104,9 +104,12 @@ def randomly_fail() -> bool:
 
 
 # NOTE: could be reused across stages if desired
-def sleep_placeholder():
+def sleep_placeholder(duration=None):
     """
-    Sleep for 3 seconds. Intended to represent
+    Sleep for some seconds. Intended to represent
     a quick task runtime.
     """
-    time.sleep(3)
+    if duration is not None:
+        time.sleep(duration)
+    else:
+        time.sleep(3)

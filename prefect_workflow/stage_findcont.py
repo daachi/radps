@@ -1,4 +1,3 @@
-import time
 import requests
 import dask.array as da
 import scipy
@@ -7,6 +6,7 @@ import pathlib
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 
+from core import sleep_placeholder
 from example_calibration_pipeline import create_qa_artifact
 from stage_data_import_and_prep import (
     extract_transform_load,
@@ -70,7 +70,7 @@ def calculate_mean_spectrum(dirty_cube) -> dict:
     print(
         "Pretending to calculate a mean spectrum for determining line-free channels in a dirty image cube"
     )
-    time.sleep(2)
+    sleep_placeholder(2)
     mean_spectrum = dirty_cube["data"]["source_1"].mean(axis=2).compute()
 
     return mean_spectrum
@@ -81,7 +81,7 @@ def peak_over_MAD(mean_spectrum) -> dict:
     print(
         "Pretending to use median absolute deviation method to find line-free channels"
     )
-    time.sleep(6)
+    sleep_placeholder(6)
     continuum_data = {"result": scipy.stats.median_abs_deviation(mean_spectrum)}
 
     return {}
