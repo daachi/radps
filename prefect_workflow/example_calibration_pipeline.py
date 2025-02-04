@@ -1,11 +1,13 @@
-from prefect import flow
+import asyncio
+
+from prefect import flow, exceptions
+from prefect.deployments import run_deployment
 
 # Imports for stages
-from stage_calibrator_import_and_prep import calibrator_data_import_and_prep
+from stage_calibrator_import_and_prep import calibrator_data_import_and_prep, run_calibrator_import_and_prep_in_parallel
 from stage_bandpass_solve import bandpass_solve
 from stage_time_gain_solve import time_gain_solve
 from stage_image_calibrators import image_calibrator
-from core import Context, create_qa_artifact
 
 # Implemetation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
@@ -19,35 +21,41 @@ from core import Context, create_qa_artifact
 # parent flow, in the future we should consider using separate
 # deployments for each step in the pipeline as recommended in
 # https://docs.prefect.io/v3/develop/write-flows
-#
-# NOTE: This will likely be replaced with the new top-level flow, but we could also move it to pipeline.py so we also have the 
-# option to run just the imaging or just the calibration pipeline. 
 @flow(log_prints=True)
 def calibration_pipeline_example():
     """
     Example calibration pipeline implementation in Prefect from Figure 1 of "An Example RADPS Workflow Decomposition"
     """
-    bpcal = "bandpass_calibrator_name"
-    gaincal = "gain_calibrator_name"
-    calibrators = [bpcal, gaincal]
-    for calibrator in calibrators:
-#        run_deployment(
-#            name="calibrator-data-import-and-prep/import data and prep",
-#            parameters={"calibrator": calibrator},
-#            job_variables={"env": {"MY_ENV_VAR": "staging"}},
-#            timeout=0
-#            )
-        calibrator_data_import_and_prep(calibrator)
-    bandpass_solve(bpcal)
-    time_gain_solve(gaincal)
-    for calibrator in calibrators:  # TODO: do this in parallel eventually, but cannot as a flow
-        image_calibrator(calibrator)
-    context = Context.load()
-    create_qa_artifact(context.qa_scores)
+    # Calibrator Data Import and Prep
+    calibrators = ["J1752-2956", "J1851+0035"]
+
+    try:
+        imported_calibrators = asyncio.run(
+            run_calibrator_import_and_prep_in_parallel(calibrators))
+    except exceptions.ObjectNotFound:
+        print("Failed to run deployment for calibrator import. Running in serial.")
+        imported_calibrators = []
+        for calibrator in calibrators:
+            imported_calibrators.append(calibrator_data_import_and_prep(calibrator))
+
+    # Bandpass Solve
+    bandpass_solve(imported_calibrators[0])
+
+    # Time Gain Solve
+    time_gain_solve(imported_calibrators[1])
+
+    # Image Calibrators
+    for source in calibrators:
+        try:
+            run_deployment(
+                name="image-calibrator/image calibrator and export to archive",
+                parameters={"calibrator": source},
+                timeout=0
+                )
+        except exceptions.ObjectNotFound:
+            print(f"Failed to run deployment for calibrator {calibrator}. Running serially.")
+            image_calibrator(source)
 
 
 if __name__ == "__main__":
-    #calibrator_data_import_and_prep.serve(  # Flow to deploy
-    #    name="import data and prep",  # Name of the deployment
-    #)
     calibration_pipeline_example()
