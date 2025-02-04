@@ -90,7 +90,7 @@ def image_target_cube(data):
             qa_result = cubeimage_qa_score(image_data)
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
             stored_context = store_context(archived_data)
-            qa_result['cube_image_data']=image_data
+            #qa_result['cube_image_data']=image_data
             create_qa_artifact(qa_result)
         except Exception as e:
             print(f"Cube imaging failed with error: {e}")

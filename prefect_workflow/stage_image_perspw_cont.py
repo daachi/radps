@@ -36,12 +36,12 @@ def image_perspw_cont(data,src='target'):
     # do per spw imaging (solve per spw and field)
     image_data = solve(res2, src='target', combine='scan', soltype='imaging')
     qa_score = perspw_cont_imaging_qa_score(image_data)
-    qa_score['perspw_cont_image'] = image_data
+    #qa_score['perspw_cont_image'] = image_data
     # export data
     archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
     #store context
     stored_context = store_context(archived_data)
-    create_qa_artifact(qa_score, artifact_type="table")
+    create_qa_artifact(qa_score)
     return stored_context
 
 
