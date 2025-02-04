@@ -80,3 +80,6 @@ def bandpass_solve(bpcal):
         emit_event(event="low_qa.bandpass.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 
+
+if __name__ == "__main__":
+    bandpass_solve()

@@ -92,3 +92,6 @@ def time_gain_solve(gaincal):
         emit_event(event="low_qa.gaincal.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 
+
+if __name__ == "__main__":
+    time_gain_solve()

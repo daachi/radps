@@ -7,6 +7,7 @@ from prefect.deployments import run_deployment
 from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
                   qa_failure_condition)
 
+
 @flow(log_prints=True)
 async def run_calibrator_import_and_prep_in_parallel(calibrators):
     """
@@ -112,3 +113,8 @@ def calibrator_data_import_and_prep(calibrator):
         pause_flow_run()
 
     return context.path
+
+
+if __name__ == "__main__":
+    calibrators = ["J1752-2956", "J1851+0035"]
+    run_calibrator_import_and_prep_in_parallel(calibrators)
