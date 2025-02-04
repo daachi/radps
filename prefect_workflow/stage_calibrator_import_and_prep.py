@@ -1,3 +1,5 @@
+import asyncio 
+
 from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
@@ -27,11 +29,16 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False
                     )
         )
 
-    results = []
-    for flow_run in sub_flows:
-        await wait_for_flow_run(flow_run.id, poll_interval=5)
-        results.append(fake_data((100, 100)))
-    return results
+    data = []
+#    for flow_run in sub_flows:
+#        await wait_for_flow_run(flow_run.id, poll_interval=5)
+#        results.append(fake_data((100, 100)))
+    subflows = [wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows]
+    results = await asyncio.gather(*subflows)
+    for result in results:
+        data.append(fake_data((100, 100)))
+
+    return data
 
 
 # NOTE: could be combined with the similar task from target import
