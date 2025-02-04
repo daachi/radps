@@ -22,7 +22,7 @@ from stage_image_calibrators import image_calibrator
 # deployments for each step in the pipeline as recommended in
 # https://docs.prefect.io/v3/develop/write-flows
 @flow(log_prints=True)
-def calibration_pipeline_example():
+def calibration_pipeline_example(failures=False):
     """
     Example calibration pipeline implementation in Prefect from Figure 1 of "An Example RADPS Workflow Decomposition"
     """
@@ -31,31 +31,31 @@ def calibration_pipeline_example():
 
     try:
         imported_calibrators = asyncio.run(
-            run_calibrator_import_and_prep_in_parallel(calibrators))
+            run_calibrator_import_and_prep_in_parallel(calibrators, failures=failures))
     except exceptions.ObjectNotFound:
         print("Failed to run deployment for calibrator import. Running in serial.")
         imported_calibrators = []
         for calibrator in calibrators:
-            imported_calibrators.append(calibrator_data_import_and_prep(calibrator))
+            imported_calibrators.append(calibrator_data_import_and_prep(calibrator, failures=failures))
 
     # Bandpass Solve
-    bandpass_solve(imported_calibrators[0])
+    bandpass_solve(imported_calibrators[0], failures=failures)
 
     # Time Gain Solve
-    time_gain_solve(imported_calibrators[1])
+    time_gain_solve(imported_calibrators[1], failures=failures)
 
     # Image Calibrators
     for source in calibrators:
         try:
             run_deployment(
                 name="image-calibrator/image calibrator and export to archive",
-                parameters={"calibrator": source},
+                parameters={"calibrator": source, "failures": failures},
                 timeout=0
                 )
         except exceptions.ObjectNotFound:
             print(f"Failed to run deployment for calibrator {calibrator}. Running serially.")
-            image_calibrator(source)
+            image_calibrator(source, failures=failures)
 
 
 if __name__ == "__main__":
-    calibration_pipeline_example()
+    calibration_pipeline_example(failures=True)

@@ -88,20 +88,26 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         )
 
 
-def qa_failure_condition(qa_score: float, threshold: float = 0.67) -> bool:
+def qa_failure_condition(qa_score: float, threshold: float = 0.67, failures_on=False) -> bool:
     """
     Check if the QA score is below the threshold.
     """
-    return qa_score < threshold
+    if failures_on:
+        return qa_score < threshold
+    else:
+        return False
 
 
-def randomly_fail() -> bool:
+def randomly_fail(on=False) -> bool:
     """
     Randomly return True or False.
     Intended to test the ability to handle failures.
     As is, this is an unrealistically high failure rate.
     """
-    return random.choice([True, False])
+    if on:
+        return random.choice([True, False])
+    else:
+        return False
 
 
 def sleep_placeholder(duration: float = 3.0):

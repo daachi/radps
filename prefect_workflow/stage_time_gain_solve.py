@@ -63,7 +63,7 @@ def any_spw_high_snr(spws: List[int], snr) -> bool:
 
 
 @flow(log_prints=True)
-def time_gain_solve(gaincal):
+def time_gain_solve(gaincal, failures=False):
     logger = get_run_logger()
     logger.info(f"Starting time gain solve for {gaincal}")
 
@@ -88,7 +88,7 @@ def time_gain_solve(gaincal):
     context.save()
     logger.info(f"Gaincal QA Scores: {qa['gaincal_qa_score']}")
 
-    if qa_failure_condition(qa['gaincal_qa_score']):
+    if qa_failure_condition(qa['gaincal_qa_score'], failures_on=failures):
         emit_event(event="low_qa.gaincal.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 

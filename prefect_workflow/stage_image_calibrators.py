@@ -15,28 +15,28 @@ def apply_cal(calibrator):
 @task(tags=["imaging"])
 def image_continuum(calibrator):
     sleep_placeholder()
-    return fake_data((100, 100))
+    return fake_data((5, 5))
 
 
 @task(tags=["io"])
-def export_spw_to_archive(calibrator):
+def export_spw_to_archive(spw_image):
     sleep_placeholder(0.1)
 
 
 # NOTE: should be merged with code to export target cube images to the archive
-@task(retries=4, tags=["io"])
-def export_continuum_images_to_archive(calibrator):
+@task(retries=2, tags=["io"])
+def export_continuum_images_to_archive(calibrator, failures=False):
     sleep_placeholder()
     export_results = []
     for i in calibrator[0]:
         export_results.append(export_spw_to_archive.submit(i))
-    if randomly_fail():
+    if randomly_fail(on=failures):
         raise Exception("Export of calibrator images to the Archive failed.")
     return export_results
 
 
 @flow(log_prints=True)
-def image_calibrator(calibrator):
+def image_calibrator(calibrator, failures=False):
     logger = get_run_logger()
     logger.info(f"Imaging {calibrator}")
 
@@ -47,7 +47,7 @@ def image_calibrator(calibrator):
     images = image_continuum(calibrated_vis)
 
     logger.info(f"Exporting continuum images to archive: {images}")
-    result = export_continuum_images_to_archive(images)
+    result = export_continuum_images_to_archive(images, failures=failures)
 
     qa_score = fake_qa_score('imaging_qa_score', result=result)
 
@@ -56,7 +56,7 @@ def image_calibrator(calibrator):
     context.update(qa_score)
     context.save()
 
-    if qa_failure_condition(qa_score['imaging_qa_score']):
+    if qa_failure_condition(qa_score['imaging_qa_score'], failures_on=failures):
         emit_event(event="low_qa.imaging.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 

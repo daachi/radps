@@ -9,7 +9,7 @@ from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifac
 
 
 @flow(log_prints=True)
-async def run_calibrator_import_and_prep_in_parallel(calibrators):
+async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False):
     """
     Run the calibrator import and prep stage in parallel.
     This is a workaround for Prefect's lack of direct support 
@@ -22,7 +22,7 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators):
         sub_flows.append(
             await run_deployment(
                     name="calibrator-data-import-and-prep/import data and prep",
-                    parameters={"calibrator": calibrators},
+                    parameters={"calibrator": calibrator, "failures": failures},
                     timeout=0,
                     )
         )
@@ -35,13 +35,13 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators):
 
 
 # NOTE: could be combined with the similar task from target import
-@task(retries=4, tags=["io"])
-def import_data_from_archive(data) -> dict:
+@task(retries=2, tags=["io"])
+def import_data_from_archive(data, failures=False) -> dict:
     """
     Simulate importing data from the archive.
     """
     sleep_placeholder()
-    if randomly_fail():
+    if randomly_fail(on=failures):
         raise Exception("Import data from archive failed")
     else:
         return fake_data((1000, 1000))
@@ -77,7 +77,7 @@ def apply_antpos(table, data):
 
 # NOTE: could be combined with the flow to import and prep target data
 @flow(log_prints=True)
-def calibrator_data_import_and_prep(calibrator):
+def calibrator_data_import_and_prep(calibrator, failures=False):
     """
     Import and prepare calibration data.
     """
@@ -87,7 +87,7 @@ def calibrator_data_import_and_prep(calibrator):
     context = Context()
 
     logger.info(f"Importing data from archive for {calibrator}")
-    calibrator_data = import_data_from_archive(calibrator)
+    calibrator_data = import_data_from_archive(calibrator, failures=failures)
 
     logger.info(f"Applying online flags for {calibrator}")
     flagged_data = apply_online_flags(calibrator_data)
@@ -108,7 +108,7 @@ def calibrator_data_import_and_prep(calibrator):
     context.update(qa_score)
     context.save()
 
-    if qa_failure_condition(qa_score['data_import_and_prep']):
+    if qa_failure_condition(qa_score['data_import_and_prep'], failures_on=failures):
         emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 

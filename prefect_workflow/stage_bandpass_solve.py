@@ -12,9 +12,9 @@ def autoflag_bandpass(bp_data):
     sleep_placeholder()
 
 
-@task(retries=3, tags=["io"])
-def query_calmod(bandpass_calibrator):
-    if randomly_fail():
+@task(retries=2, tags=["io"])
+def query_calmod(bandpass_calibrator, failures=False):
+    if randomly_fail(on=failures):
         raise Exception("Query calmod failed")
     else:
         return fake_data((100, 100))
@@ -45,7 +45,7 @@ def bandpass_qa_score(bp_data) -> dict:
 
 
 @flow(log_prints=True)
-def bandpass_solve(bpcal):
+def bandpass_solve(bpcal, failures=False):
     """
     Do the bandpass solution
     """
@@ -58,7 +58,7 @@ def bandpass_solve(bpcal):
     flagged_bandpass = autoflag_bandpass(bpcal)
 
     logger.info(f"Querying calmod for {bpcal}")
-    query_calmod(bpcal)
+    query_calmod(bpcal, failures=failures)
 
     logger.info(f"Calmod for {bpcal}")
     calmod(bpcal)
@@ -76,7 +76,7 @@ def bandpass_solve(bpcal):
     create_qa_artifact(qa_score)
     logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
 
-    if qa_failure_condition(qa_score['bandpass_qa_score']):
+    if qa_failure_condition(qa_score['bandpass_qa_score'], failures_on=failures):
         emit_event(event="low_qa.bandpass.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 
