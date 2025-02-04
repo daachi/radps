@@ -2,8 +2,7 @@
 
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
-from core import fake_qa_score, create_qa_artifact, sleep_placeholder
-ns = 1
+from core import fake_qa_score, create_qa_artifact, sleep_placeholder, Context
 
 # Re-usable across stages?
 def generate_image_datashape(imsize,nchan=1,npol=1)-> dict:
@@ -55,6 +54,13 @@ def calc_heuristics(data, type=''):
     else:
         return data 
 
+@task
+def solve_model(data, id, niter=2):
+    for i in range(0,niter):
+        calc_update_direction(inp,id)
+        update_model(inp,id)
+        check_converge(inp,id)
+    return
 
 @task # in-algorithm parallelism
 def calc_update_direction(data, id):
@@ -237,6 +243,7 @@ def image_cont_selfcal(data, src='target', doselfcal=False):
     # Export continuum images, parallelize by field only
     archived_data = archive_export(selfcalresult[lastiter]['updated_image'],src='target',paraxes='field')
     stored_context = store_context(archived_data)
+    #create_qa_artifact(selfcalresult[lastiter]['QA'], artifact_type='table')   
     create_qa_artifact(selfcalresult[lastiter]['QA'])   
     return updated_image
 
