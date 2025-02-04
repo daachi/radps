@@ -7,7 +7,7 @@ from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 
 from core import sleep_placeholder
-from example_calibration_pipeline import create_qa_artifact
+from core import create_qa_artifact
 
 # Target Data Import and Prep
 @task

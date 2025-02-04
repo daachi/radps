@@ -6,8 +6,7 @@ import pathlib
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 
-from core import sleep_placeholder
-from example_calibration_pipeline import create_qa_artifact
+from core import sleep_placeholder, create_qa_artifact
 from stage_data_import_and_prep import (
     extract_transform_load,
     apply_caltable
