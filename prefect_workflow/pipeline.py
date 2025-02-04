@@ -30,7 +30,7 @@ def pipeline():
     try:
         imported_calibrators = asyncio.run(
             run_calibrator_import_and_prep_in_parallel(calibrators))
-    except exceptions.ObjectNotFound:
+    except (exceptions.ObjectNotFound, exceptions.PrefectHTTPStatusError):
         print("Failed to run deployment for calibrator import. Running in serial.")
         imported_calibrators = []
         for calibrator in calibrators:
