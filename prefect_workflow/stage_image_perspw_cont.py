@@ -41,7 +41,7 @@ def image_perspw_cont(data,src='target'):
     archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
     #store context
     stored_context = store_context(archived_data)
-    create_qa_artifact(qa_score)
+    create_qa_artifact(qa_score, artifact_type="table")
     return stored_context
 
 
