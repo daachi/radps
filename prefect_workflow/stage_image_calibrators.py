@@ -1,8 +1,9 @@
-from prefect import flow, task
+from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
-from core import sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score
+from core import (sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score, 
+                  qa_failure_condition)
 
 # Image Calibrators
 @task(tags=["calibration"])
@@ -40,9 +41,12 @@ def image_calibrator(calibrator):
 
     qa_score = fake_qa_score('imaging_qa_score', result=result)
 
-    if qa_score['imaging_qa_score'] < 0.67:
-        emit_event(event="low_qa.imaging.event!", resource={"prefect.resource.id": "test.id"})
-
+    logger.info("Updating context and creating QA artifact")
     create_qa_artifact(qa_score)
     context.update(qa_score)
     context.save()
+
+    if qa_failure_condition(qa_score['imaging_qa_score']):
+        emit_event(event="low_qa.imaging.event!", resource={"prefect.resource.id": "test.id"})
+        pause_flow_run()
+

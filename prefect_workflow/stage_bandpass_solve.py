@@ -1,8 +1,9 @@
-from prefect import flow, task
+from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
-from core import fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score
+from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
+                  qa_failure_condition)
 
 
 # Bandpass Solution
@@ -69,10 +70,13 @@ def bandpass_solve(bpcal):
     bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model)  # TODO: expand this out to the solver loop
     qa_score = bandpass_qa_score(bandpass_solution)
 
-    logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
-    if qa_score['bandpass_qa_score'] < 0.67:
-        emit_event(event="low_qa.bandpass.event!", resource={"prefect.resource.id": "test.id"})
-
+    logger.info("Updating context and creating QA artifact")
     context.update(qa_score)
     context.save()
     create_qa_artifact(qa_score)
+    logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
+
+    if qa_failure_condition(qa_score['bandpass_qa_score']):
+        emit_event(event="low_qa.bandpass.event!", resource={"prefect.resource.id": "test.id"})
+        pause_flow_run()
+

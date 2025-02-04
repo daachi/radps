@@ -1,11 +1,11 @@
-from prefect import flow, task
+from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 from prefect.flow_runs import wait_for_flow_run
 from prefect.deployments import run_deployment
 
-from core import fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score
-
+from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
+                  qa_failure_condition)
 
 @flow(log_prints=True)
 async def run_calibrator_import_and_prep_in_parallel(calibrators):
@@ -16,25 +16,20 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators):
     """
     sub_flows = []
     results = []
-    sub_flows.append(
-        await run_deployment(
-                name="calibrator-data-import-and-prep/import data and prep",
-                parameters={"calibrator": '1'},
-                timeout=0,
-                )
-    )
-    sub_flows.append(
-        await run_deployment(
-                name="calibrator-data-import-and-prep/import data and prep",
-                parameters={"calibrator": '2'},
-                timeout=0,
-                )
-    )
+
+    for calibrator in calibrators:
+        sub_flows.append(
+            await run_deployment(
+                    name="calibrator-data-import-and-prep/import data and prep",
+                    parameters={"calibrator": calibrators},
+                    timeout=0,
+                    )
+        )
 
     results = []
     for flow_run in sub_flows:
         await wait_for_flow_run(flow_run.id, poll_interval=5)
-        results.append(fake_data((100,100)))
+        results.append(fake_data((100, 100)))
     return results
 
 
@@ -108,12 +103,12 @@ def calibrator_data_import_and_prep(calibrator):
 
     logger.info("Updating context and creating QA artifact")
     qa_score = fake_qa_score('data_import_and_prep', result=result)
-
-    if qa_score['data_import_and_prep'] < 0.67:
-        emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
-
     create_qa_artifact(qa_score)
     context.update(qa_score)
     context.save()
+
+    if qa_failure_condition(qa_score['data_import_and_prep']):
+        emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
+        pause_flow_run()
 
     return context.path

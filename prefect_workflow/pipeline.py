@@ -1,7 +1,6 @@
 import asyncio
 
 from prefect import flow
-from prefect.deployments import run_deployment
 from prefect import exceptions
 
 from stage_calibrator_import_and_prep import calibrator_data_import_and_prep, run_calibrator_import_and_prep_in_parallel
@@ -17,7 +16,6 @@ from stage_image_cont_selfcal import generate_vis_datashape
 
 # Implemetation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
-
 
 
 @flow(log_prints=True)

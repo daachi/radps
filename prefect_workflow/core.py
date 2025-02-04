@@ -88,6 +88,13 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         )
 
 
+def qa_failure_condition(qa_score: float, threshold: float = 0.67) -> bool:
+    """
+    Check if the QA score is below the threshold.
+    """
+    return qa_score < threshold
+
+
 def randomly_fail() -> bool:
     """
     Randomly return True or False.

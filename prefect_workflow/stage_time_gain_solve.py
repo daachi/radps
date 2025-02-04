@@ -1,10 +1,10 @@
 import random
 
-from prefect import flow, task
+from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
-from core import sleep_placeholder, create_qa_artifact, Context, fake_qa_score
+from core import (sleep_placeholder, create_qa_artifact, Context, fake_qa_score, qa_failure_condition)
 from typing import List
 
 # Time Gain Solve
@@ -83,11 +83,12 @@ def time_gain_solve(gaincal):
 
     qa = gaincal_qa_score(result)
 
-    if qa['gaincal_qa_score'] < 0.67:
-        emit_event(event="low_qa.gaincal.event!", resource={"prefect.resource.id": "test.id"})
-
-    logger.info(f"Gaincal QA Scores: {qa['gaincal_qa_score']}")
     create_qa_artifact(qa)
-
     context.update(qa)
     context.save()
+    logger.info(f"Gaincal QA Scores: {qa['gaincal_qa_score']}")
+
+    if qa_failure_condition(qa['gaincal_qa_score']):
+        emit_event(event="low_qa.gaincal.event!", resource={"prefect.resource.id": "test.id"})
+        pause_flow_run()
+
