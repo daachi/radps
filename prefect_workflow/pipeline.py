@@ -2,6 +2,7 @@ import asyncio
 
 from prefect import flow
 from prefect import exceptions
+from prefect.deployments import run_deployment
 
 from stage_calibrator_import_and_prep import calibrator_data_import_and_prep, run_calibrator_import_and_prep_in_parallel
 from stage_bandpass_solve import bandpass_solve
@@ -29,7 +30,7 @@ def pipeline():
     try:
         imported_calibrators = asyncio.run(
             run_calibrator_import_and_prep_in_parallel(calibrators))
-    except exceptions.ObjectNotFound:
+    except (exceptions.ObjectNotFound, exceptions.PrefectHTTPStatusError):
         print("Failed to run deployment for calibrator import. Running in serial.")
         imported_calibrators = []
         for calibrator in calibrators:
