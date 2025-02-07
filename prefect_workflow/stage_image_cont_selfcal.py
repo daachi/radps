@@ -3,6 +3,9 @@
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
 from core import fake_qa_score, create_qa_artifact, sleep_placeholder, Context
+import numpy as np
+from matplotlib.image import imsave
+import pathlib
 
 # Re-usable across stages?
 def generate_image_datashape(imsize,nchan=1,npol=1)-> dict:
@@ -19,7 +22,19 @@ def generate_vis_datashape(addchan=False) -> dict:
         nchan = 2
         datashape['target']['n_nchan'] = nchan
     return datashape 
-    
+
+def generate_fake_image(datashape):
+    """ Generate a fake png image """ 
+    imsize = datashape['x']
+    nchan = datashape['nchan']
+    npol = datashape['npol']
+    imdata = np.zeros((imsize,imsize,nchan,npol))
+    imdata[0,0,0,0] = 1.0
+    imsave('fake_image.png',imdata)
+    imageurl = pathlib.Path('fake_image.png').resolve().as_uri()
+    return imageurl 
+
+
 # Can be re-used across stages but need to be modified to be useful   
 def generate_flow_name() -> str:
     """ Generate flow name based on runtime info"""
@@ -171,12 +186,13 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
         if ret==dict() and type == 'calibration':
             ret = model_par
         elif 'imaging' in soltype:
+            # add input vis data(shape) info 
             srcdata = dict()
             srcdata[src] = dict(datashape[src])
             if soltype == 'cube_imaging':
-                ret = generate_image_datashape(512,nchan=n_chan) 
+                ret['image'] = generate_image_datashape(512,nchan=n_chan) 
             else:
-                ret = generate_image_datashape(512)
+                ret['image'] = generate_image_datashape(512)
             ret.update(srcdata)
     return ret
 
