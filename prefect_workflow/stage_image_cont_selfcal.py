@@ -83,6 +83,12 @@ def calc_update_direction(data, id):
     sleep_placeholder(1.0)
     return 
 
+@task 
+def gather_direction(data):
+    """Gather update direction"""
+    sleep_placeholder(1.0)
+    return 
+
 # following tasks probably need to be flows as it involves parallelism
 @task # in-algorithm parallelism
 def update_model(data, id=0):
@@ -173,15 +179,22 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
             n_comb = n_spw*n_scan
             ret = data 
         model_par = [] # calibration solutions(caltable) or images
-        for i in range(0, n_par): ## separate solution for each of n_par
-            model = prep
+        #for i in range(0, n_par): ## separate solution for each of n_par
+        model = prep
 
-            for iter in range(0,niter):  ## Number of solver loops (iterations)
-                res_par=[]
-                for j in range(0,n_comb): ## In-algorithm parallelism 
-                    res_par.append(calc_update_direction.submit(model,j)) ## caltable pre-apply (or model vis prediction) happens on the same parallelization axis as the update_direction calculation.
-                modelc = update_model.submit(res_par,i)
-                model = check_converge(modelc.result(),i)
+        for iter in range(0,niter):  ## Number of solver loops (iterations)
+            #    for j in range(0,n_comb): ## In-algorithm parallelism 
+                    # caltable pre-apply (or model vis prediction) happens on the same parallelization 
+                    # axis as the update_direction calculation.
+            res_futures = [calc_update_direction.submit(model,j) for j in range(0, n_comb)] 
+            # gather updated directions
+            dir_res = gather_direction.submit(res_futures)
+            # n_par parallelization
+            modelc_futures = [update_model.submit(dir_res,i) for i in range(0, n_par)]
+            model_futures = [check_converge.submit(modelc_future) for modelc_future in modelc_futures] 
+            model = [model_future for model_future in model_futures] 
+            for model_future in model_futures:
+                model_future.wait()
             model_par.append(model)
         if ret==dict() and type == 'calibration':
             ret = model_par
