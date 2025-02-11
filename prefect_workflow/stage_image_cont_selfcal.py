@@ -2,7 +2,8 @@
 
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
-from core import fake_qa_score, create_qa_artifact, sleep_placeholder, Context
+from core import (fake_qa_score, create_qa_artifact, sleep_placeholder,
+                  load_context, store_context)
 import numpy as np
 from matplotlib.image import imsave
 import pathlib
@@ -46,15 +47,6 @@ def generate_flow_name() -> str:
     return f"{typeparam}_{flow_name}"
 
 # Imaging stage specific functions
-@task
-def load_context(data,src):
-    """Load and select data """
-    seldata = dict()
-    # assume here data is a data structure without any data
-    if isinstance(data,dict) and src in data:
-        seldata[src] = dict(data[src])
-    return seldata
-
 @task
 def data_prep(data):
     sleep_placeholder(1.0)
@@ -108,12 +100,6 @@ def applymodel(inp, datashape, src):
    sleep_placeholder(1.0)
    return datashape
 
-@flow
-def store_context(inp):
-    """Store context"""
-    sleep_placeholder(1.0)
-    ret = inp
-    return ret
 
 @task
 def archive_export_func(inp,id=0):
@@ -215,7 +201,7 @@ def image_cont_selfcal(data, src='target', doselfcal=False):
     print("Stating continuum imaging with self-calibration")
 
     # load target calibrated visibility data 
-    calibrated_target_vis = load_context(inp,src=src)
+    calibrated_target_vis = load_context(data=data, src=src)
     
     # make aggregate continuum image
     with tags('initial imaging'):
@@ -271,7 +257,7 @@ def image_cont_selfcal(data, src='target', doselfcal=False):
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
     archived_data = archive_export(selfcalresult[lastiter]['updated_image'],src='target',paraxes='field')
-    stored_context = store_context(archived_data)
+    stored_context = store_context(inp=archived_data)
     #create_qa_artifact(selfcalresult[lastiter]['QA'], artifact_type='table')   
     create_qa_artifact(selfcalresult[lastiter]['QA'])   
     return updated_image

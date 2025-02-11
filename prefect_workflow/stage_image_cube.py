@@ -3,14 +3,13 @@
 from prefect import task, flow
 # import imaging stage specific functions
 from stage_image_cont_selfcal import (
-    load_context,  
     solve,  
     calc_heuristics, 
     archive_export, 
-    store_context,
     generate_fake_image,
 )
-from core import fake_qa_score, create_qa_artifact, sleep_placeholder
+from core import (fake_qa_score, create_qa_artifact, sleep_placeholder,
+                  load_context, store_context)
 
 @task
 def cubeimage_qa_score(image_data):
@@ -99,7 +98,7 @@ def image_target_cube(data):
     """
     print("Starting cube imaging for target")
 
-    calibrated_data = load_context(data, src='target')
+    calibrated_data = load_context(data=data, src='target')
 
     # Do spectral line existance check and return relevant data
     has_spectraldata = calc_heuristics(calibrated_data)
@@ -115,7 +114,7 @@ def image_target_cube(data):
                           combine='scan', soltype='cube_imaging')
             qa_result = cubeimage_qa_score(image_data)
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
-            stored_context = store_context(archived_data)
+            stored_context = store_context(inp=archived_data)
             # fake artifact generation
             create_qa_artifact(qa_result, artifact_type = "table")
             image_result = dict()

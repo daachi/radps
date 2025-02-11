@@ -6,7 +6,7 @@ from prefect.events import emit_event
 
 from core import (sleep_placeholder, create_qa_artifact,
                   fake_qa_score, qa_failure_condition,
-                  load_context, save_context)
+                  load_context, store_context)
 from typing import List
 
 # Time Gain Solve
@@ -87,7 +87,7 @@ def time_gain_solve(gaincal, failures=False):
 
     create_qa_artifact(qa)
     context.update(qa)
-    save_context(context)
+    store_context(context=context)
     logger.info(f"Gaincal QA Scores: {qa['gaincal_qa_score']}")
 
     if qa_failure_condition(qa['gaincal_qa_score'], failures_on=failures):

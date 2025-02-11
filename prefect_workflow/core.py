@@ -33,13 +33,26 @@ class Context:
 
 
 @flow(log_prints=True)
-def load_context():
-    return Context.load()
+def load_context(data=None, src=None):
+    """Load and select data """
+    if data is not None:
+        seldata = dict()
+        # assume here data is a data structure without any data
+        if isinstance(data, dict) and src in data:
+            seldata[src] = dict(data[src])
+        return seldata
+    else:
+        return Context.load()
 
 
 @flow(log_prints=True)
-def save_context(context):
-    context.save()
+def store_context(context=None, inp=None):
+    """Store context"""
+    if context is not None:
+        context.save()
+    sleep_placeholder(1.0)
+    ret = inp
+    return ret
 
 
 def fake_data(dimensions: tuple) -> dict:

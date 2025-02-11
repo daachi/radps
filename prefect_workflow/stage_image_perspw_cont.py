@@ -1,14 +1,12 @@
 #per-SPW continuum imaging
 from prefect import task, flow
 from stage_image_cont_selfcal import (
-    load_context, 
     applymodel, 
     solve, 
     archive_export, 
-    store_context,
     generate_image_datashape,
 )
-from core import fake_qa_score, create_qa_artifact
+from core import fake_qa_score, create_qa_artifact, load_context, store_context
 
 @task
 def perspw_cont_imaging_qa_score(image_data):
@@ -25,7 +23,7 @@ def image_perspw_cont(data,src='target'):
     per-SPW continuum imaging 
     """
     print("Starting per-SPW continuum imaging")
-    res = load_context(data,src)
+    res = load_context(data=data, src=src)
     # check if selcal is done
     # and if that is the case, apply best calibration solution to data
     res2 = dict(res)
@@ -40,7 +38,7 @@ def image_perspw_cont(data,src='target'):
     # export data
     archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
     #store context
-    stored_context = store_context(archived_data)
+    stored_context = store_context(inp=archived_data)
     create_qa_artifact(qa_score)
     return stored_context
 
