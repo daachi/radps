@@ -3,6 +3,9 @@
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
 from core import fake_qa_score, create_qa_artifact, sleep_placeholder, Context
+import numpy as np
+from matplotlib.image import imsave
+import pathlib
 
 # Re-usable across stages?
 def generate_image_datashape(imsize,nchan=1,npol=1)-> dict:
@@ -19,7 +22,19 @@ def generate_vis_datashape(addchan=False) -> dict:
         nchan = 2
         datashape['target']['n_nchan'] = nchan
     return datashape 
-    
+
+def generate_fake_image(datashape):
+    """ Generate a fake png image """ 
+    imsize = datashape['x']
+    nchan = datashape['nchan']
+    npol = datashape['npol']
+    imdata = np.zeros((imsize,imsize,nchan,npol))
+    imdata[0,0,0,0] = 1.0
+    imsave('fake_image.png',imdata)
+    imageurl = pathlib.Path('fake_image.png').resolve().as_uri()
+    return imageurl 
+
+
 # Can be re-used across stages but need to be modified to be useful   
 def generate_flow_name() -> str:
     """ Generate flow name based on runtime info"""
@@ -65,6 +80,12 @@ def solve_model(data, id, niter=2):
 @task # in-algorithm parallelism
 def calc_update_direction(data, id):
     """Calculte update direction"""
+    sleep_placeholder(1.0)
+    return 
+
+@task 
+def gather_direction(data):
+    """Gather update direction"""
     sleep_placeholder(1.0)
     return 
 
@@ -158,25 +179,33 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
             n_comb = n_spw*n_scan
             ret = data 
         model_par = [] # calibration solutions(caltable) or images
-        for i in range(0, n_par): ## separate solution for each of n_par
-            model = prep
+        #for i in range(0, n_par): ## separate solution for each of n_par
+        model = prep
 
-            for iter in range(0,niter):  ## Number of solver loops (iterations)
-                res_par=[]
-                for j in range(0,n_comb): ## In-algorithm parallelism 
-                    res_par.append(calc_update_direction.submit(model,j)) ## caltable pre-apply (or model vis prediction) happens on the same parallelization axis as the update_direction calculation.
-                modelc = update_model.submit(res_par,i)
-                model = check_converge(modelc.result(),i)
+        for iter in range(0,niter):  ## Number of solver loops (iterations)
+            #    for j in range(0,n_comb): ## In-algorithm parallelism 
+                    # caltable pre-apply (or model vis prediction) happens on the same parallelization 
+                    # axis as the update_direction calculation.
+            res_futures = [calc_update_direction.submit(model,j) for j in range(0, n_comb)] 
+            # gather updated directions
+            dir_res = gather_direction.submit(res_futures)
+            # n_par parallelization
+            modelc_futures = [update_model.submit(dir_res,i) for i in range(0, n_par)]
+            model_futures = [check_converge.submit(modelc_future) for modelc_future in modelc_futures] 
+            model = [model_future for model_future in model_futures] 
+            for model_future in model_futures:
+                model_future.wait()
             model_par.append(model)
         if ret==dict() and type == 'calibration':
             ret = model_par
         elif 'imaging' in soltype:
+            # add input vis data(shape) info 
             srcdata = dict()
             srcdata[src] = dict(datashape[src])
             if soltype == 'cube_imaging':
-                ret = generate_image_datashape(512,nchan=n_chan) 
+                ret['image'] = generate_image_datashape(512,nchan=n_chan) 
             else:
-                ret = generate_image_datashape(512)
+                ret['image'] = generate_image_datashape(512)
             ret.update(srcdata)
     return ret
 

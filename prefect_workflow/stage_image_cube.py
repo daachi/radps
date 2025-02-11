@@ -8,6 +8,7 @@ from stage_image_cont_selfcal import (
     calc_heuristics, 
     archive_export, 
     store_context,
+    generate_fake_image,
 )
 from core import fake_qa_score, create_qa_artifact, sleep_placeholder
 
@@ -15,7 +16,9 @@ from core import fake_qa_score, create_qa_artifact, sleep_placeholder
 def cubeimage_qa_score(image_data):
     """ Calculate QA score for cube images"""
     sleep_placeholder(1.0) 
-    return fake_qa_score('cubeimage_qa_score')
+    qascore = fake_qa_score('cubeimage_qa_score')
+    qascore["cube_image_data"] = image_data 
+    return qascore
 
 @task
 def uvcontsub(inp, chunkid=0, spw_for_trigger_partial_failure=-1 ):
@@ -32,7 +35,18 @@ def uvcontsub(inp, chunkid=0, spw_for_trigger_partial_failure=-1 ):
 
 @task
 def uv_continuum_subtraction(data) -> dict:
-    """ Perform continuum subraction in uv domain"""
+    """
+    Perform continuum subraction in uv domain
+    - run in parallel across spws
+
+    Parameters:
+      data: fake target source visibility data containing spectral line data
+
+    Returns:
+      uvcont_ret - continuum subtracted data optionally conttain continuum fit 
+      data
+
+    """
     print("UV continuum subtraction simulating parallel execution")
     
     # Parameters to trigger some failure modes
@@ -70,7 +84,19 @@ def uv_continuum_subtraction(data) -> dict:
     
 @flow
 def image_target_cube(data):
-    """ Cube imaging on target """
+    """ 
+    Cube imaging on target
+
+    Parameters:
+      data: fake continuum subtracted target visibility data 
+
+    Returns:
+      images: cube images
+
+    Context to be saved: cube images, spectral line data, QA scores
+      uvcontsub fit results (continuum model)
+    
+    """
     print("Starting cube imaging for target")
 
     calibrated_data = load_context(data, src='target')
@@ -79,7 +105,7 @@ def image_target_cube(data):
     has_spectraldata = calc_heuristics(calibrated_data)
     if has_spectraldata == dict():
         print("No spectral data found. Cube imaging stage is skipped")
-        return inp 
+        return 
     else: # do target cube imaging
         try:  
             # uvcontsub
@@ -90,8 +116,12 @@ def image_target_cube(data):
             qa_result = cubeimage_qa_score(image_data)
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
             stored_context = store_context(archived_data)
-            #qa_result['cube_image_data']=image_data
-            create_qa_artifact(qa_result)
+            # fake artifact generation
+            create_qa_artifact(qa_result, artifact_type = "table")
+            image_result = dict()
+            image_result["url"] = generate_fake_image(image_data["image"])
+            create_qa_artifact(image_result, artifact_type = "image")
+
         except Exception as e:
             print(f"Cube imaging failed with error: {e}")
             stored_context = data    

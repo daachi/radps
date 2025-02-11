@@ -79,7 +79,7 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
             description="QA Report",
         )
 
-    if artifact_type == "image":
+    elif artifact_type == "image":
         image = qa_scores["url"]
 
         create_image_artifact(
