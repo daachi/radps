@@ -6,15 +6,15 @@ from prefect.events import emit_event
 from prefect.flow_runs import wait_for_flow_run
 from prefect.deployments import run_deployment
 
-from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
-                  qa_failure_condition, store_context)
+from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, create_context, fake_qa_score,
+                  qa_failure_condition, add_to_context)
 
 
 @flow(log_prints=True)
 async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False):
     """
     Run the calibrator import and prep stage in parallel.
-    This is a workaround for Prefect's lack of direct support 
+    This is a workaround for Prefect's lack of direct support
     for a flow.submit() analogous to task.submit()
     """
     sub_flows = []
@@ -42,7 +42,7 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False
 
 
 # NOTE: could be combined with the similar task from target import
-@task(retries=2, tags=["io"])
+@task(retries=4, tags=["io"])
 def import_data_from_archive(data, failures=False) -> dict:
     """
     Simulate importing data from the archive.
@@ -91,7 +91,7 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     logger = get_run_logger()
     logger.info(f"Starting calibrator data import and prep for {calibrator}")
 
-    context = Context()
+    context = create_context()
 
     logger.info(f"Importing data from archive for {calibrator}")
     calibrator_data = import_data_from_archive(calibrator, failures=failures)
@@ -112,14 +112,13 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     logger.info("Updating context and creating QA artifact")
     qa_score = fake_qa_score('data_import_and_prep', result=result)
     create_qa_artifact(qa_score)
-    context.update(qa_score)
-    store_context(context=context)
+    current_context = add_to_context(qa_score)
 
     if qa_failure_condition(qa_score['data_import_and_prep'], failures_on=failures):
         emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 
-    return context.path
+    print(current_context)
 
 
 if __name__ == "__main__":

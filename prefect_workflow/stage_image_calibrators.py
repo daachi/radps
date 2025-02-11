@@ -3,7 +3,7 @@ from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
 from core import (sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
-                  qa_failure_condition, fake_data, store_context, load_context)
+                  qa_failure_condition, fake_data, add_to_context, load_context)
 
 # Image Calibrators
 @task(tags=["calibration"])
@@ -24,7 +24,7 @@ def export_spw_to_archive(spw_image):
 
 
 # NOTE: should be merged with code to export target cube images to the archive
-@task(retries=2, tags=["io"])
+@task(retries=4, tags=["io"])
 def export_continuum_images_to_archive(calibrator, failures=False):
     sleep_placeholder()
     export_results = []
@@ -53,8 +53,9 @@ def image_calibrator(calibrator, failures=False):
 
     logger.info("Updating context and creating QA artifact")
     create_qa_artifact(qa_score)
-    context.update(qa_score)
-    store_context(context=context)
+    new_context = add_to_context(qa_score)
+    print("context after imaging calibrator")
+    print(new_context)
 
     if qa_failure_condition(qa_score['imaging_qa_score'], failures_on=failures):
         emit_event(event="low_qa.imaging.event!", resource={"prefect.resource.id": "test.id"})

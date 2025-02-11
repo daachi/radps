@@ -2,8 +2,8 @@ from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
-from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
-                  qa_failure_condition, load_context, store_context)
+from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
+                  qa_failure_condition, load_context, add_to_context)
 
 
 # Bandpass Solution
@@ -12,7 +12,7 @@ def autoflag_bandpass(bp_data):
     sleep_placeholder()
 
 
-@task(retries=2, tags=["io"])
+@task(retries=4, tags=["io"])
 def query_calmod(bandpass_calibrator, failures=False):
     if randomly_fail(on=failures):
         raise Exception("Query calmod failed")
@@ -53,6 +53,8 @@ def bandpass_solve(bpcal, failures=False):
     logger.info(f"Starting bandpass solve for {bpcal}")
 
     context = load_context()
+    print("staritng context as of bandpass  solve")
+    print(context)
 
     logger.info(f"Flagging bandpass data for {bpcal}")
     flagged_bandpass = autoflag_bandpass(bpcal)
@@ -71,8 +73,11 @@ def bandpass_solve(bpcal, failures=False):
     qa_score = bandpass_qa_score(bandpass_solution)
 
     logger.info("Updating context and creating QA artifact")
-    context.update(qa_score)
-    store_context(context=context)
+    new_context = add_to_context(qa_score)
+
+    print("context after bandpass solve")
+    print(new_context)
+
     create_qa_artifact(qa_score)
     logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
 

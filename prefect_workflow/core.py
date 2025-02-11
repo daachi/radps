@@ -3,7 +3,8 @@ import random
 import pickle
 import numpy as np
 
-from prefect import flow
+from copy import deepcopy
+from prefect import flow, task
 
 from prefect.artifacts import (
     create_markdown_artifact,
@@ -17,6 +18,8 @@ class Context:
 
     def __init__(self):
         self.qa_scores = {}
+        self.data = {}
+        self.save()
 
     def update(self, qa_score):
         for key, value in qa_score.items():
@@ -26,33 +29,57 @@ class Context:
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
+    def to_dict(self) -> dict:
+        """Creates and returns a dict representation of the context."""
+        data = deepcopy(self.data)
+        data["qa_scores"] = self.qa_scores
+        data["context"] = self.path
+        return data
+
     @classmethod
     def load(cls, filename=path):
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
+        """Loads a context from a file."""
+        try:
+            with open(filename, 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            print("Context file not found. Creating new context.")
+            return cls()
+        except (EOFError, pickle.UnpicklingError):
+            print("File read error. Creating new context.")
+            return cls()
+        except Exception as e:
+            print(f"Error loading context: {e}. Creating new context")
+            return cls()
 
 
-@flow(log_prints=True)
-def load_context(data=None, src=None):
-    """Load and select data """
-    if data is not None:
-        seldata = dict()
-        # assume here data is a data structure without any data
-        if isinstance(data, dict) and src in data:
-            seldata[src] = dict(data[src])
-        return seldata
-    else:
-        return Context.load()
+@task(log_prints=True)
+def create_context():
+    """Create and return context"""
+    context = Context()
+    return context.to_dict()
 
 
-@flow(log_prints=True)
-def store_context(context=None, inp=None):
-    """Store context"""
-    if context is not None:
-        context.save()
+@task(log_prints=True)
+def load_context() -> dict:
+    """Load and return context"""
+    context_object = Context.load()
+    context_dict = context_object.to_dict()
+    return context_dict
+
+
+@task(log_prints=True)
+def add_to_context(inp: dict, key="data") -> dict:
+    """
+    Stores information in context.
+    Will be stored under the provided key.
+    Returns the full current context dict
+    """
+    context_object = Context.load()
+    context_object.data[key] = inp
+    context_object.save()
     sleep_placeholder(1.0)
-    ret = inp
-    return ret
+    return context_object.to_dict()
 
 
 def fake_data(dimensions: tuple) -> dict:
