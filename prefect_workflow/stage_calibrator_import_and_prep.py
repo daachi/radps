@@ -7,7 +7,7 @@ from prefect.flow_runs import wait_for_flow_run
 from prefect.deployments import run_deployment
 
 from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
-                  qa_failure_condition)
+                  qa_failure_condition, save_context)
 
 
 @flow(log_prints=True)
@@ -113,7 +113,7 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     qa_score = fake_qa_score('data_import_and_prep', result=result)
     create_qa_artifact(qa_score)
     context.update(qa_score)
-    context.save()
+    save_context(context)
 
     if qa_failure_condition(qa_score['data_import_and_prep'], failures_on=failures):
         emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})

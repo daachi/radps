@@ -3,7 +3,7 @@ from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
 from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
-                  qa_failure_condition)
+                  qa_failure_condition, load_context, save_context)
 
 
 # Bandpass Solution
@@ -52,7 +52,7 @@ def bandpass_solve(bpcal, failures=False):
     logger = get_run_logger()
     logger.info(f"Starting bandpass solve for {bpcal}")
 
-    context = Context.load()
+    context = load_context()
 
     logger.info(f"Flagging bandpass data for {bpcal}")
     flagged_bandpass = autoflag_bandpass(bpcal)
@@ -72,7 +72,7 @@ def bandpass_solve(bpcal, failures=False):
 
     logger.info("Updating context and creating QA artifact")
     context.update(qa_score)
-    context.save()
+    save_context(context)
     create_qa_artifact(qa_score)
     logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
 

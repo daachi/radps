@@ -3,7 +3,7 @@ from prefect.logging import get_run_logger
 from prefect.events import emit_event
 
 from core import (sleep_placeholder, randomly_fail, create_qa_artifact, Context, fake_qa_score,
-                  qa_failure_condition, fake_data)
+                  qa_failure_condition, fake_data, save_context, load_context)
 
 # Image Calibrators
 @task(tags=["calibration"])
@@ -40,7 +40,7 @@ def image_calibrator(calibrator, failures=False):
     logger = get_run_logger()
     logger.info(f"Imaging {calibrator}")
 
-    context = Context.load()
+    context = load_context()
     calibrated_vis = apply_cal(calibrator)
 
     logger.info("Imaging calibrator: {calibrator}")
@@ -54,7 +54,7 @@ def image_calibrator(calibrator, failures=False):
     logger.info("Updating context and creating QA artifact")
     create_qa_artifact(qa_score)
     context.update(qa_score)
-    context.save()
+    save_context(context)
 
     if qa_failure_condition(qa_score['imaging_qa_score'], failures_on=failures):
         emit_event(event="low_qa.imaging.event!", resource={"prefect.resource.id": "test.id"})

@@ -3,6 +3,8 @@ import random
 import pickle
 import numpy as np
 
+from prefect import flow
+
 from prefect.artifacts import (
     create_markdown_artifact,
     create_table_artifact,
@@ -28,6 +30,16 @@ class Context:
     def load(cls, filename=path):
         with open(filename, 'rb') as f:
             return pickle.load(f)
+
+
+@flow(log_prints=True)
+def load_context():
+    return Context.load()
+
+
+@flow(log_prints=True)
+def save_context(context):
+    context.save()
 
 
 def fake_data(dimensions: tuple) -> dict:
