@@ -1,4 +1,5 @@
 #per-SPW continuum imaging
+import os
 from prefect import task, flow
 from stage_image_cont_selfcal import (
     applymodel, 
@@ -6,7 +7,7 @@ from stage_image_cont_selfcal import (
     archive_export, 
     generate_image_datashape,
 )
-from core import fake_qa_score, create_qa_artifact, load_context, store_context
+from core import fake_qa_score, create_qa_artifact, load_context, add_to_context
 
 @task
 def perspw_cont_imaging_qa_score(image_data):
@@ -17,20 +18,35 @@ def perspw_cont_imaging_qa_score(image_data):
         retdict.update(qascore)
     return retdict
 
-@flow
-def image_perspw_cont(data,src='target'):
+@flow(log_prints=True)
+def image_perspw_cont(data: dict={}, src: str='target') -> dict:
     """
     per-SPW continuum imaging 
     """
     print("Starting per-SPW continuum imaging")
-    res = load_context(data=data, src=src)
+    if data == dict():
+        print('Loading existing context...')
+        if not os.path.exists('context.pkl'): 
+            raise OSError("No context.pkl found. Please run previous stages first.")
+        else:
+            print('context.pkl found. Loading context...')
+            data = load_context()
+            # check if calibrated data exist from previous stage
+            # ToDo: change to use 'stage' key to pull the relevant context
+            if 'calibrated_data' not in data:
+                raise OSError("No calibrated data found. Please run previous stages first.")
+            else:
+                calibrated_data = {key: data['calibrated_data'][key] 
+                                   for key in data['calibrated_data'].keys() & {src}}
+    else:
+        calibrated_data = dict(data)
+
     # check if selcal is done
     # and if that is the case, apply best calibration solution to data
-    res2 = dict(res)
-    if 'selfcal_sol' in res2[src]:
+    if 'selfcal_sol' in calibrated_data[src]:
         print("Selfcal solution found, applying to data")
-        caltable = data[src]['selfcal_sol']
-        res2 = applymodel(caltable, data, src='target')
+        caltable = calibrated_data[src]['selfcal_sol']
+        res2 = applymodel(caltable, calibrated_data, src='target')
     # do per spw imaging (solve per spw and field)
     image_data = solve(res2, src='target', combine='scan', soltype='imaging')
     qa_score = perspw_cont_imaging_qa_score(image_data)
@@ -38,7 +54,8 @@ def image_perspw_cont(data,src='target'):
     # export data
     archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
     #store context
-    stored_context = store_context(inp=archived_data)
+    stored_context = add_to_context(inp=archived_data, key='image')
+    print(f'Final stored context: {stored_context}')
     create_qa_artifact(qa_score)
     return stored_context
 

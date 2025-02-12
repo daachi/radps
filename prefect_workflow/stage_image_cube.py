@@ -1,6 +1,7 @@
 #Spectral line imaging for target(s)
 
 from prefect import task, flow
+from prefect.logging import get_run_logger
 # import imaging stage specific functions
 from stage_image_cont_selfcal import (
     solve,  
@@ -8,8 +9,15 @@ from stage_image_cont_selfcal import (
     archive_export, 
     generate_fake_image,
 )
-from core import (fake_qa_score, create_qa_artifact, sleep_placeholder,
-                  load_context, store_context)
+from core import (
+    fake_qa_score, 
+    create_qa_artifact,
+    sleep_placeholder,
+    create_context,
+    load_context,
+    add_to_context,
+)
+import os
 
 @task
 def cubeimage_qa_score(image_data):
@@ -20,7 +28,7 @@ def cubeimage_qa_score(image_data):
     return qascore
 
 @task
-def uvcontsub(inp, chunkid=0, spw_for_trigger_partial_failure=-1 ):
+def uvcontsub(inp: dict, chunkid: int=0, spw_for_trigger_partial_failure: int=-1 ):
     """ 
     Perform uv continuum subtraction for a given chunk
     trigger_partial_failure = True will raise an execption for chunkid=2
@@ -32,11 +40,13 @@ def uvcontsub(inp, chunkid=0, spw_for_trigger_partial_failure=-1 ):
 
     return  
 
-@task
-def uv_continuum_subtraction(data) -> dict:
+@task(log_prints=True)
+def uv_continuum_subtraction(data: dict) -> dict:
     """
     Perform continuum subraction in uv domain
-    - run in parallel across spws
+    - Run in parallel across spws
+    - This tasks has parameters which need to be manually edited to trigger
+    failure modes
 
     Parameters:
       data: fake target source visibility data containing spectral line data
@@ -56,6 +66,7 @@ def uv_continuum_subtraction(data) -> dict:
     # raise_exception, failed_spw = True, 2
     # Trigger failure on uvcontsub for a specified spw but continue on 
     raise_exception, failed_spw =False, 2
+    print(f"Run with raise_exception={raise_exception}, failed_spw={failed_spw}")
 
     n_field = data['target']['n_field']
     n_spw = data['target']['n_spw']
@@ -63,6 +74,7 @@ def uv_continuum_subtraction(data) -> dict:
     uvcont_ret = dict()
     uvcont_par=[]
     # parallel processing across fields and scans 
+    print(f"Concurrently process uvcontsub across n_field({n_field}) and scans({n_scan}).")
     for ipar in range(n_field*n_scan):
         spw_par = []
         for ispw in range(n_spw):
@@ -78,16 +90,19 @@ def uv_continuum_subtraction(data) -> dict:
 
     uvcont_ret['uvcont_result']=uvcont_par
     uvcont_ret['datashape'] = dict(data)
+    print('uvcont_ret=',uvcont_ret)
     return uvcont_ret
 
     
-@flow
-def image_target_cube(data):
+@flow(log_prints=True)
+def image_target_cube(data: dict={},src: str='target'):
     """ 
     Cube imaging on target
 
     Parameters:
       data: fake continuum subtracted target visibility data 
+            default: try to load from existing context 
+      src: target source name, default: 'target'
 
     Returns:
       images: cube images
@@ -97,10 +112,35 @@ def image_target_cube(data):
     
     """
     print("Starting cube imaging for target")
+    calibrated_data = dict()
+    if data == dict():
+        print('Loading existing context...')
+        if not os.path.exists('context.pkl'): 
+        #if fileexist == False:
+            raise OSError("No context.pkl found. Please run previous stages first.")
+            
+        else:
+            print('context.pkl found. Loading context...')
+            data = load_context()
+            # check if calibrated data exist from previous stage
+            # ToDo: change to use 'stage' key to pull the relevant context
+            if 'calibrated_data' not in data:
+                raise OSError("No calibrated data found. Please run previous stages first.")
+            else:
+                calibrated_data = {key: data['calibrated_data'][key] 
+                                   for key in data['calibrated_data'].keys() & {src}}
+            # simulate data context from previous stages so that calibrated data exist in the context
+            #init_context = create_context()
+            #input_context = add_to_context(data, key='calibrated_data')
+            #all_calibrated_data = load_context()['calibrated_data']
+            #print('all_calibrated_data = ', all_calibrated_data)
+            #calibrated_data = {key: all_calibrated_data[key] for key in all_calibrated_data.keys() & {'target'}}
+    else:
+        calibrated_data = dict(data) 
 
-    calibrated_data = load_context(data=data, src='target')
-
+    print(f"Input calibrated_data: {calibrated_data}")
     # Do spectral line existance check and return relevant data
+    #  - currently return input data 
     has_spectraldata = calc_heuristics(calibrated_data)
     if has_spectraldata == dict():
         print("No spectral data found. Cube imaging stage is skipped")
@@ -109,17 +149,20 @@ def image_target_cube(data):
         try:  
             # uvcontsub
             uvcontsub_res = uv_continuum_subtraction(has_spectraldata)
-
+            cur_context = add_to_context(uvcontsub_res, key='uvcontsub') 
             image_data = solve(uvcontsub_res['datashape'], src='target', 
                           combine='scan', soltype='cube_imaging')
             qa_result = cubeimage_qa_score(image_data)
+            print("Archiving the resultant cube images... ") 
+            # parallize across fields and spws
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
-            stored_context = store_context(inp=archived_data)
+            stored_context = add_to_context(inp=archived_data, key='image')
             # fake artifact generation
             create_qa_artifact(qa_result, artifact_type = "table")
             image_result = dict()
             image_result["url"] = generate_fake_image(image_data["image"])
             create_qa_artifact(image_result, artifact_type = "image")
+            print(f"Final stored context: {stored_context}")
 
         except Exception as e:
             print(f"Cube imaging failed with error: {e}")
