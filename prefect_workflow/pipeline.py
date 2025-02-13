@@ -37,7 +37,7 @@ def pipeline():
             imported_calibrators.append(calibrator_data_import_and_prep(calibrator))
 
     # Bandpass Solve
-    bandpass_solve(imported_calibrators[0])
+    bandpass_solve(calibrators[0], imported_calibrators[0])
 
     # Time Gain Solve
     time_gain_solve(imported_calibrators[1])

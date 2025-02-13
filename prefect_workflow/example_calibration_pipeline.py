@@ -39,7 +39,7 @@ def calibration_pipeline_example(failures=False):
             imported_calibrators.append(calibrator_data_import_and_prep(calibrator, failures=failures))
 
     # Bandpass Solve
-    bandpass_solve(imported_calibrators[0], failures=failures)
+    bandpass_solve(calibrators[0], imported_calibrators[0], failures=failures)
 
     # Time Gain Solve
     time_gain_solve(imported_calibrators[1], failures=failures)

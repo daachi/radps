@@ -46,32 +46,32 @@ def bandpass_qa_score(bp_data, bpcal) -> dict:
 
 
 @flow(log_prints=True)
-def bandpass_solve(bpcal, failures=False):
+def bandpass_solve(bpcal_name, bpcal, failures=False):
     """
     Do the bandpass solution
     """
     logger = get_run_logger()
-    logger.info(f"Starting bandpass solve for {bpcal}")
+    logger.info(f"Starting bandpass solve for {bpcal_name}")
 
     context = load_context()
     print("staritng context as of bandpass  solve")
     print(context)
 
-    logger.info(f"Flagging bandpass data for {bpcal}")
+    logger.info(f"Flagging bandpass data for {bpcal_name}")
     flagged_bandpass = autoflag_bandpass(bpcal)
 
-    logger.info(f"Querying calmod for {bpcal}")
+    logger.info(f"Querying calmod for {bpcal_name}")
     query_calmod(bpcal, failures=failures)
 
-    logger.info(f"Calmod for {bpcal}")
+    logger.info(f"Calmod for {bpcal_name}")
     calmod(bpcal)
 
-    logger.info(f"Saving model vis for {bpcal}")
+    logger.info(f"Saving model vis for {bpcal_name}")
     flagged_bandpass_saved_model = save_model_vis(flagged_bandpass)
 
-    logger.info(f"Calculating bandpass solution for {bpcal}")
+    logger.info(f"Calculating bandpass solution for {bpcal_name}")
     bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model)  # TODO: expand this out to the solver loop
-    qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal)
+    qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal_name)
 
     logger.info("Updating context and creating QA artifact")
     new_context = add_to_context(qa_score, key="qa", stage="bandpass")
