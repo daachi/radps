@@ -54,9 +54,11 @@ def image_perspw_cont(data: dict={}, src: str='target') -> dict:
     # export data
     archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
     #store context
-    stored_context = add_to_context(inp=archived_data, key='image')
+    stored_context = add_to_context(inp=archived_data, key='image', stage='image_perspw_cont')
+    stored_context = add_to_context(inp=qa_score, key='qa_scores', stage='image_perspw_cont')
     print(f'Final stored context: {stored_context}')
     create_qa_artifact(qa_score)
+
     return stored_context
 
 

@@ -2,6 +2,7 @@
 
 from prefect import task, flow
 from prefect.logging import get_run_logger
+from prefect.events import emit_event
 # import imaging stage specific functions
 from stage_image_cont_selfcal import (
     solve,  
@@ -28,20 +29,29 @@ def cubeimage_qa_score(image_data):
     return qascore
 
 @task
-def uvcontsub(inp: dict, chunkid: int=0, spw_for_trigger_partial_failure: int=-1 ):
+def uvcontsub_qa_score(uvcontsub_res):
+    """ Calculate QA score for uvcontsub"""
+    sleep_placeholder(1.0) 
+    qascore = fake_qa_score('uvcontsub_qa_score')
+    return qascore
+
+@task
+def uvcontsub(inp: dict, spwid: int=0, spw_for_trigger_partial_failure: int=-1 ):
     """ 
-    Perform uv continuum subtraction for a given chunk
+    Perform uv continuum subtraction for a given spw
     trigger_partial_failure = True will raise an execption for chunkid=2
     """
     sleep_placeholder(2.0)
     if spw_for_trigger_partial_failure > -1:
-        if chunkid == spw_for_trigger_partial_failure:
-            raise RuntimeError(f'uvcontsub failed for {chunkid}')
-
-    return  
+        if spwid == spw_for_trigger_partial_failure:
+            emit_event(event=f"uvcontsub failed for spw {spwid}", 
+               resource={"prefect.resource.id": "test.id"})
+            raise RuntimeError(f'uvcontsub failed for {spwid}')
+    return 'Pass' 
 
 @task(log_prints=True)
-def uv_continuum_subtraction(data: dict) -> dict:
+def uv_continuum_subtraction(data: dict, src: str, 
+                             failure_sim: dict={'raise_exception':False, 'failed_spw': -1} ) -> dict:
     """
     Perform continuum subraction in uv domain
     - Run in parallel across spws
@@ -50,6 +60,7 @@ def uv_continuum_subtraction(data: dict) -> dict:
 
     Parameters:
       data: fake target source visibility data containing spectral line data
+      src: target source name 
 
     Returns:
       uvcont_ret - continuum subtracted data optionally conttain continuum fit 
@@ -65,12 +76,15 @@ def uv_continuum_subtraction(data: dict) -> dict:
     # Trigger failure on uvcontsub and raise an exception for a specifed spw
     # raise_exception, failed_spw = True, 2
     # Trigger failure on uvcontsub for a specified spw but continue on 
-    raise_exception, failed_spw =False, 2
+    # raise_exception, failed_spw =False, 2
+    # - Exposed to main flow...
+    raise_exception = failure_sim['raise_exception']
+    failed_spw = failure_sim['failed_spw']
     print(f"Run with raise_exception={raise_exception}, failed_spw={failed_spw}")
 
-    n_field = data['target']['n_field']
-    n_spw = data['target']['n_spw']
-    n_scan = data['target']['n_scan']
+    n_field = data[src]['n_field']
+    n_spw = data[src]['n_spw']
+    n_scan = data[src]['n_scan']
     uvcont_ret = dict()
     uvcont_par=[]
     # parallel processing across fields and scans 
@@ -89,13 +103,18 @@ def uv_continuum_subtraction(data: dict) -> dict:
             print(f'uvcontsub failed for {i}')
 
     uvcont_ret['uvcont_result']=uvcont_par
-    uvcont_ret['datashape'] = dict(data)
+    uvcont_ret['datashape'] = {}
+    uvcont_ret['datashape'][src] = dict(data[src])
     print('uvcont_ret=',uvcont_ret)
+    uvcontsub_qa_result = uvcontsub_qa_score(uvcont_ret) 
+    uvcont_ret['qa_result'] = uvcontsub_qa_result
+    create_qa_artifact(uvcontsub_qa_result)
     return uvcont_ret
 
     
 @flow(log_prints=True)
-def image_target_cube(data: dict={},src: str='target'):
+def image_target_cube(data: dict={},src: str='target', 
+                      failure_mode: dict={'raise_exception':False, 'failed_spw': -1}):
     """ 
     Cube imaging on target
 
@@ -129,18 +148,12 @@ def image_target_cube(data: dict={},src: str='target'):
             else:
                 calibrated_data = {key: data['calibrated_data'][key] 
                                    for key in data['calibrated_data'].keys() & {src}}
-            # simulate data context from previous stages so that calibrated data exist in the context
-            #init_context = create_context()
-            #input_context = add_to_context(data, key='calibrated_data')
-            #all_calibrated_data = load_context()['calibrated_data']
-            #print('all_calibrated_data = ', all_calibrated_data)
-            #calibrated_data = {key: all_calibrated_data[key] for key in all_calibrated_data.keys() & {'target'}}
     else:
         calibrated_data = dict(data) 
 
     print(f"Input calibrated_data: {calibrated_data}")
     # Do spectral line existance check and return relevant data
-    #  - currently return input data 
+    #  - currently just return input data 
     has_spectraldata = calc_heuristics(calibrated_data)
     if has_spectraldata == dict():
         print("No spectral data found. Cube imaging stage is skipped")
@@ -148,15 +161,18 @@ def image_target_cube(data: dict={},src: str='target'):
     else: # do target cube imaging
         try:  
             # uvcontsub
-            uvcontsub_res = uv_continuum_subtraction(has_spectraldata)
-            cur_context = add_to_context(uvcontsub_res, key='uvcontsub') 
+            uvcontsub_res = uv_continuum_subtraction(has_spectraldata, src, failure_mode)
+            cur_context = add_to_context(uvcontsub_res, key='uvcontsub', stage='image_cube') 
             image_data = solve(uvcontsub_res['datashape'], src='target', 
                           combine='scan', soltype='cube_imaging')
             qa_result = cubeimage_qa_score(image_data)
             print("Archiving the resultant cube images... ") 
             # parallize across fields and spws
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
-            stored_context = add_to_context(inp=archived_data, key='image')
+            print('image data == ', image_data)
+            stored_context = add_to_context(inp=archived_data, key='image', stage='image_cube')
+            stored_context = add_to_context(inp=data, key='data', stage='image_cube')
+            stored_context = add_to_context(inp=qa_result, key='cube_image_qa', stage='image_cube')
             # fake artifact generation
             create_qa_artifact(qa_result, artifact_type = "table")
             image_result = dict()
@@ -174,5 +190,5 @@ if __name__ == '__main__':
     data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
              'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
-    image_target_cube(data)
+    image_target_cube(data,failure_mode={'raise_exception':False, 'failed_spw':1})
     

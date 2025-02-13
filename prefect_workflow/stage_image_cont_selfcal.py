@@ -105,7 +105,7 @@ def applymodel(inp, datashape, src):
 def archive_export_func(inp,id=0):
     """Archive and export results"""
     sleep_placeholder(1.0)
-    return
+    return 'data_'+str(id)
 
 @flow
 def archive_export(data, src, paraxes='fieldandspw') -> list:
@@ -124,9 +124,16 @@ def archive_export(data, src, paraxes='fieldandspw') -> list:
     exp_par = []
     for i in range(0, npar):
         exp_par.append(archive_export_func.submit(data,i))
+    
     sleep_placeholder(1.0)
     return [j.result() for j in exp_par]
 
+def create_selfcal_qa_scores(selfcal_result):
+    """ Create QA scores for selfcal """
+    qa_scores={}
+    for i in selfcal_result:
+        qa_scores['selfcal_Iter_'+str(i)] = selfcal_result[i]['QA']
+    return qa_scores
 
 @flow(flow_run_name=generate_flow_name)
 def solve(data, src, combine=None, niter=2, soltype='calibration'):
@@ -192,7 +199,7 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
                 ret['image'] = generate_image_datashape(512,nchan=n_chan) 
             else:
                 ret['image'] = generate_image_datashape(512)
-            ret.update(srcdata)
+            ret.update(srcdata) # need a dasashape for trigger parallization
     return ret
 
 @flow (log_prints=True, description='Continuum imaging with self-calibration stage')
@@ -270,11 +277,15 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     # selfcal loop and before saving the results. 
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
-    archived_data = archive_export(selfcalresult[lastiter]['updated_image'],src='target',paraxes='field')
-    stored_context = add_to_context(inp=archived_data)
+    archived_data = archive_export(selfcalresult[lastiter]['updated_image'],
+                                   src='target',paraxes='field')
+    stored_context = add_to_context(inp=selfcalresult, key='selfcal_result', 
+                                    stage='image_cont_selfcal')
     print(f'Final stored context: {stored_context}')    
+    qa_scores = create_selfcal_qa_scores(selfcalresult)
+    create_qa_artifact(qa_scores, artifact_type='table')   
     #create_qa_artifact(selfcalresult[lastiter]['QA'], artifact_type='table')   
-    create_qa_artifact(selfcalresult[lastiter]['QA'])   
+    #create_qa_artifact(selfcalresult[lastiter]['QA'])   
     return updated_image
 
 
