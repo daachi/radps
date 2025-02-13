@@ -64,7 +64,7 @@ def load_context() -> dict:
 
 
 @task(log_prints=True)
-def add_to_context(inp: dict, stage="unknown_stage", key="data") -> dict:
+def add_to_context(inp: dict, key="data", stage="unknown_stage") -> dict:
     """
     Stores information in context.
     Will be stored under the provided key.
