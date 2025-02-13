@@ -36,12 +36,13 @@ def amp_phase_solve(bp_data):
 
 
 @task(tags=["qa"])
-def bandpass_qa_score(bp_data) -> dict:
+def bandpass_qa_score(bp_data, bpcal) -> dict:
     """
     Calculate a QA score for the bandpass solution.
     """
     sleep_placeholder()
-    return fake_qa_score('bandpass_qa_score')
+    qa_name = f'bandpass_qa_score_{bpcal}'
+    return qa_name, fake_qa_score(qa_name)
 
 
 @flow(log_prints=True)
@@ -70,18 +71,18 @@ def bandpass_solve(bpcal, failures=False):
 
     logger.info(f"Calculating bandpass solution for {bpcal}")
     bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model)  # TODO: expand this out to the solver loop
-    qa_score = bandpass_qa_score(bandpass_solution)
+    qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal)
 
     logger.info("Updating context and creating QA artifact")
-    new_context = add_to_context(qa_score)
+    new_context = add_to_context(qa_score, key="qa", stage="bandpass")
 
     print("context after bandpass solve")
     print(new_context)
 
     create_qa_artifact(qa_score)
-    logger.info(f"Bandpass QA Scores: {qa_score['bandpass_qa_score']}")
+    logger.info(f"Bandpass QA Scores: {qa_score}")
 
-    if qa_failure_condition(qa_score['bandpass_qa_score'], failures_on=failures):
+    if qa_failure_condition(qa_score[qa_name], failures_on=failures):
         emit_event(event="low_qa.bandpass.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 

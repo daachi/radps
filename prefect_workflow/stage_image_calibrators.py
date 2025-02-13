@@ -53,7 +53,7 @@ def image_calibrator(calibrator, failures=False):
 
     logger.info("Updating context and creating QA artifact")
     create_qa_artifact(qa_score)
-    new_context = add_to_context(qa_score)
+    new_context = add_to_context(qa_score, key="qa", stage="calibrator_imaging")
     print("context after imaging calibrator")
     print(new_context)
 

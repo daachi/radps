@@ -110,11 +110,12 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     logger.info(f"Result of calibrator data import and prep for {calibrator}: {result}")
 
     logger.info("Updating context and creating QA artifact")
-    qa_score = fake_qa_score('data_import_and_prep', result=result)
+    qa_name = f"calibrator_data_import_and_prep_{calibrator}"
+    qa_score = fake_qa_score(qa_name, result=result)
     create_qa_artifact(qa_score)
-    current_context = add_to_context(qa_score)
+    current_context = add_to_context(qa_score, key="qa", stage="calibrator_data_import_and_prep")
 
-    if qa_failure_condition(qa_score['data_import_and_prep'], failures_on=failures):
+    if qa_failure_condition(qa_score[qa_name], failures_on=failures):
         emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 

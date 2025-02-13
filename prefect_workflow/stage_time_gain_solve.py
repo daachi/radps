@@ -86,7 +86,7 @@ def time_gain_solve(gaincal, failures=False):
     qa = gaincal_qa_score(result)
 
     create_qa_artifact(qa)
-    new_context = add_to_context(qa)
+    new_context = add_to_context(qa, key="qa", stage="gaincal")
     print("context updated after gaincal:")
     print(new_context)
     logger.info(f"Gaincal QA Scores: {qa['gaincal_qa_score']}")

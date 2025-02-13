@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 
 from copy import deepcopy
+from datetime import datetime
 from prefect import flow, task
 
 from prefect.artifacts import (
@@ -17,13 +18,8 @@ class Context:
     path = "context.pkl"
 
     def __init__(self):
-        self.qa_scores = {}
         self.data = {}
         self.save()
-
-    def update(self, qa_score):
-        for key, value in qa_score.items():
-            self.qa_scores[key] = value
 
     def save(self, filename='context.pkl'):
         with open(filename, 'wb') as f:
@@ -32,7 +28,6 @@ class Context:
     def to_dict(self) -> dict:
         """Creates and returns a dict representation of the context."""
         data = deepcopy(self.data)
-        data["qa_scores"] = self.qa_scores
         data["context"] = self.path
         return data
 
@@ -69,14 +64,29 @@ def load_context() -> dict:
 
 
 @task(log_prints=True)
-def add_to_context(inp: dict, key="data") -> dict:
+def add_to_context(inp: dict, stage="unknown_stage", key="data") -> dict:
     """
     Stores information in context.
     Will be stored under the provided key.
     Returns the full current context dict
     """
     context_object = Context.load()
-    context_object.data[key] = inp
+
+    if stage in context_object.data:
+        if key in context_object.data[stage]:
+            if isinstance(context_object.data[stage][key], dict):
+                context_object.data[stage][key].update(inp)
+            else:
+                now = datetime.now()
+                datetime_string = now.strftime("%Y%m%d%H%M%S")
+                new_key = f"{key}_{datetime_string}"
+                context_object.data[stage][new_key] = inp
+        else:
+            context_object.data[stage][key] = inp
+    else:
+        context_object.data[stage] = {}
+        context_object.data[stage][key] = inp
+
     context_object.save()
     sleep_placeholder(1.0)
     return context_object.to_dict()
