@@ -47,10 +47,14 @@ async def int_clean(maxiter = 10):
                 threshold=previous_threshold))
 
             if user_input.stop:
+                emit_event(event=f"Stopping int_clean", 
+                       resource={"prefect.resource.id": "test.id"})
                 print('Stopping int_clean')
                 break
             elif not user_input.interactive:
                 interactive = False 
+                emit_event(event=f"clean continue with non-interactive mode using the current parameters", 
+                       resource={"prefect.resource.id": "test.id"})
                 print('Continue to finish with non-interactive mode')
         newniter = clean_engine(user_input.cycleniter, iterdone, maxiter)
         print(f'iteration done in this cycle: {newniter}')
@@ -59,6 +63,8 @@ async def int_clean(maxiter = 10):
         iterdone = iterdone + newniter
         print(f'iterdone so far: {iterdone}')
         if iterdone >= maxiter:
+           emit_event(event=f"Reached iteration limit: {maxiter}", 
+               resource={"prefect.resource.id": "test.id"})
            print('Reached iteration limit')
            break
     #print(f'maxiter={maxiter}, iterdone={iterdone}')
