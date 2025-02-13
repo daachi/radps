@@ -8,11 +8,17 @@ from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 from prefect.logging import get_run_logger
 
-from core import sleep_placeholder, create_qa_artifact, fake_qa_score, add_to_context, load_context
+from core import (
+    sleep_placeholder,
+    create_qa_artifact,
+    fake_qa_score,
+    add_to_context,
+    load_context,
+)
 
 
 # Target Data Import and Prep
-@task(log_prints=True)
+@task
 def fake_archive_query() -> dict:
     print("Pretending to fetch some data from an archive")
     sleep_placeholder(da.random.randint(low=1, high=10, size=1))
@@ -32,10 +38,13 @@ def fake_archive_query() -> dict:
         "url": "https://almascience.nrao.edu/aq/",
     }
 
+    context = add_to_context(fake_result, "data", "data_import_and_prep")
+    print(f"Updated context after fake_archive_query: {context}")
+
     return fake_result
 
 
-@task(log_prints=True, refresh_cache=True)
+@task(refresh_cache=True)
 def fake_flagging(fake_result, target) -> dict:
     print("Performing a dummy sub-selection step")
     sleep_placeholder(2)
@@ -48,6 +57,9 @@ def fake_flagging(fake_result, target) -> dict:
         key_to_drop = target[:-1] + "0"
 
     transformed_data["data"].pop(f"{key_to_drop}")
+
+    context = add_to_context(transformed_data, "data", "data_import_and_prep")
+    print(f"Updated context after fake_flagging: {context}")
 
     return transformed_data
 
@@ -67,10 +79,13 @@ def alma_antpos_query() -> dict:
         )
         antpos_result_json = {}
 
+    context = add_to_context(antpos_result_json, "response", "data_import_and_prep")
+    print(f"Updated context after alma_antpos_query: {context}")
+
     return antpos_result_json
 
 
-@task(log_prints=True)
+@task
 def generate_caltable(antpos_result_json):
     print(
         "Pretending to generate a caltable using the results of an antenna position service query"
@@ -78,10 +93,13 @@ def generate_caltable(antpos_result_json):
     sleep_placeholder(4)
     caltable = {"gains": da.random.random_sample(size=(4))}
 
+    context = add_to_context(caltable, "caltables", "data_import_and_prep")
+    print(f"Updated context after apply_gaintable: {context}")
+
     return caltable
 
 
-@task(log_prints=True)
+@task
 def apply_caltable(uncalibrated_data, caltable, target):
     print("Pretending to apply a transformation on some data using a calibration table")
     calibrated_data = uncalibrated_data
@@ -89,10 +107,13 @@ def apply_caltable(uncalibrated_data, caltable, target):
         caltable["gains"] * uncalibrated_data["data"][target]
     )
 
+    context = add_to_context(calibrated_data, "data", "data_import_and_prep")
+    print(f"Updated context after apply_gaintable: {context}")
+
     return calibrated_data
 
 
-@flow(log_prints=True)
+@flow
 def generate_and_apply_gain_table(
     uncalibrated_data, antpos_result_json, target
 ) -> dict:
@@ -102,12 +123,19 @@ def generate_and_apply_gain_table(
     caltable = generate_caltable(antpos_result_json)
     calibrated_data = apply_caltable(uncalibrated_data, caltable, target)
 
+    context = add_to_context(caltable, "caltable", "data_import_and_prep")
+    print(f"Updated context after generate_and_apply_gaintable: {context}")
+
     return calibrated_data
 
 
-@flow
+@flow(log_prints=True)
 def extract_transform_load(source_name) -> dict:
     logger = get_run_logger()
+
+    etl_context = load_context()
+    print(f"Initial context: {etl_context}")
+
     logger.info("Calling archive query task")
     fake_data = fake_archive_query()
 
@@ -133,6 +161,8 @@ def extract_transform_load(source_name) -> dict:
     try:
         qa_score = fake_qa_score("data_import_and_prep", result=calibrated_data)
         create_qa_artifact(qa_score)
+        etl_context = add_to_context(qa_score, "qa_scores", "data_import_and_prep")
+        print(f"Final context: {etl_context}")
         return calibrated_data
     except NameError:
         logger.debug(
@@ -140,6 +170,8 @@ def extract_transform_load(source_name) -> dict:
         )
         qa_score = fake_qa_score("data_import_and_prep", result=transformed_data)
         create_qa_artifact(qa_score)
+        etl_context = add_to_context(qa_score, "qa_scores", "data_import_and_prep")
+        print(f"Final context: {etl_context}")
         return transformed_data
 
 
