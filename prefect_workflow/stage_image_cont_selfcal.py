@@ -1,11 +1,11 @@
 # Stage: Continuum imaging with self-calibration
-
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
 from core import (fake_qa_score, create_qa_artifact, sleep_placeholder,
-                  load_context, store_context)
+                  load_context, add_to_context)
 import numpy as np
 from matplotlib.image import imsave
+import os
 import pathlib
 
 # Re-usable across stages?
@@ -195,17 +195,32 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
             ret.update(srcdata)
     return ret
 
-@flow (description='Continuum imaging with self-calibration stage')
-def image_cont_selfcal(data, src='target', doselfcal=False):
+@flow (log_prints=True, description='Continuum imaging with self-calibration stage')
+def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     """Continuum imaging with self-calibration"""
     print("Stating continuum imaging with self-calibration")
 
     # load target calibrated visibility data 
-    calibrated_target_vis = load_context(data=data, src=src)
+    if data == dict():
+        print('Loading existing context...')
+        if not os.path.exists('context.pkl'): 
+            raise OSError("No context.pkl found. Please run previous stages first.")
+        else:
+            print('context.pkl found. Loading context...')
+            data = load_context()
+            # check if calibrated data exist from previous stage
+            # ToDo: change to use 'stage' key to pull the relevant context
+            if 'calibrated_data' not in data:
+                raise OSError("No calibrated data found. Please run previous stages first.")
+            else:
+                calibrated_data = {key: data['calibrated_data'][key] 
+                                   for key in data['calibrated_data'].keys() & {src}}
+    else:
+        calibrated_data = dict(data)
     
     # make aggregate continuum image
-    with tags('initial imaging'):
-        target_image_data = solve(calibrated_target_vis,
+    with tags('Initial imaging pre-selfcal'):
+        target_image_data = solve(calibrated_data,
                                   src='target', combine='both', soltype='imaging')
     
     # QA: doselfcal = True and SNR > predifined_SNR_threshold 
@@ -219,7 +234,7 @@ def image_cont_selfcal(data, src='target', doselfcal=False):
          # selfcal iteration loop
         while(selfcal_hueristics):
             with tags('gain calibration'):
-                cal_table = solve(calibrated_target_vis,src='target',combine='spw')
+                cal_table = solve(calibrated_data,src='target',combine='spw')
             updated_data = applymodel(cal_table,inp, src='target') ## Apply caltables.
             with tags('selfcal imaging'):
                 updated_image = solve(updated_data,src='target',combine='both',soltype='imaging') 
@@ -231,7 +246,6 @@ def image_cont_selfcal(data, src='target', doselfcal=False):
             snr['image_SNR'] = 10*qa_return['image_SNR'] # make fake SNR using qa value
             selfcalresult[count]=dict()
             selfcalresult[count]['updated_image']=updated_image
-            print('snr=',snr)
             selfcalresult[count]['QA'] = snr 
             # Currently, selfcal_hueristics is a boolean but in real case
             # this should include new parameters to solve in next self-cal cycle....
@@ -257,7 +271,8 @@ def image_cont_selfcal(data, src='target', doselfcal=False):
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
     archived_data = archive_export(selfcalresult[lastiter]['updated_image'],src='target',paraxes='field')
-    stored_context = store_context(inp=archived_data)
+    stored_context = add_to_context(inp=archived_data)
+    print(f'Final stored context: {stored_context}')    
     #create_qa_artifact(selfcalresult[lastiter]['QA'], artifact_type='table')   
     create_qa_artifact(selfcalresult[lastiter]['QA'])   
     return updated_image

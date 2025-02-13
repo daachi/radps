@@ -97,7 +97,7 @@ def find_continuum(dirty_cube) -> dict:
     return continuum_data
 
 
-@flow
+@flow(log_prints=True)
 def calibrate_target_and_find_continuum(input_data) -> dict:
     print(
         "Starting a pipeline stage that applies calibration to target and finds line-free continuum"

@@ -3,14 +3,17 @@ import dask.array as da
 import scipy
 from matplotlib.image import imsave
 import pathlib
+
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
+from prefect.logging import get_run_logger
 
 from core import sleep_placeholder
 from core import create_qa_artifact
 
+
 # Target Data Import and Prep
-@task
+@task(log_prints=True)
 def fake_archive_query() -> dict:
     print("Pretending to fetch some data from an archive")
     sleep_placeholder(da.random.randint(low=1, high=10, size=1))
@@ -33,7 +36,7 @@ def fake_archive_query() -> dict:
     return fake_result
 
 
-@task(refresh_cache=True)
+@task(log_prints=True, refresh_cache=True)
 def fake_flagging(fake_result, target) -> dict:
     print("Performing a dummy sub-selection step")
     sleep_placeholder(2)
@@ -52,14 +55,15 @@ def fake_flagging(fake_result, target) -> dict:
 
 @task(cache_policy=TASK_SOURCE)
 def alma_antpos_query() -> dict:
-    print("Requesting some data from an external antenna position service")
+    logger = get_run_logger()
+    logger.info("Requesting some data from an external antenna position service")
     response = requests.get(
         "http://asa.alma.cl/axis2/services/TMCDBAntennaPadService?wsdl"
     )
     try:
         antpos_result_json = response.json()["data"]
     except requests.exceptions.JSONDecodeError:
-        print(
+        logger.error(
             "Oh no, there was an issue with the query! Proceeding with empty result object."
         )
         antpos_result_json = {}
@@ -67,7 +71,7 @@ def alma_antpos_query() -> dict:
     return antpos_result_json
 
 
-@task
+@task(log_prints=True)
 def generate_caltable(antpos_result_json):
     print(
         "Pretending to generate a caltable using the results of an antenna position service query"
@@ -78,7 +82,7 @@ def generate_caltable(antpos_result_json):
     return caltable
 
 
-@task
+@task(log_prints=True)
 def apply_caltable(uncalibrated_data, caltable, target):
     print("Pretending to apply a transformation on some data using a calibration table")
     calibrated_data = uncalibrated_data
@@ -89,7 +93,7 @@ def apply_caltable(uncalibrated_data, caltable, target):
     return calibrated_data
 
 
-@flow
+@flow(log_prints=True)
 def generate_and_apply_gain_table(
     uncalibrated_data, antpos_result_json, target
 ) -> dict:
@@ -104,31 +108,33 @@ def generate_and_apply_gain_table(
 
 @flow
 def extract_transform_load(source_name) -> dict:
-    print("Calling archive query task")
+    logger = get_run_logger()
+    logger.info("Calling archive query task")
     fake_data = fake_archive_query()
 
-    print("Calling flagging task")
+    logger.info("Calling flagging task")
     transformed_data = fake_flagging(fake_data, source_name)
 
-    print("Calling antpos query task")
+    logger.info("Calling antpos query task")
     antpos_query_result = alma_antpos_query()
 
-    print(
+    logger.info(
         "Checking to see if we can/should try to perform antenna position corrections"
     )
     if antpos_query_result == {}:
         # treat an empty dictionary as expected input, just so we can see the conditional flow
-        print("Seems like we have a result. Running conditional flow")
+        logger.debug("Seems like we have a result. Running conditional flow")
         calibrated_data = generate_and_apply_gain_table(
             transformed_data, antpos_query_result, source_name
         )
     else:
-        print("Looks like we don't have a result. Skipping conditional flow")
+        logger.debug("Looks like we don't have a result. Skipping conditional flow")
 
-    print("Returning results of the target data import and prep stage")
+    logger.info("Returning results of the target data import and prep stage")
     try:
         return calibrated_data
     except NameError:
+        logger.debug(f"Caught NameError attempting return of {calibrated_data}")
         return transformed_data
 
 
