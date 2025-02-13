@@ -8,8 +8,7 @@ from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 from prefect.logging import get_run_logger
 
-from core import sleep_placeholder
-from core import create_qa_artifact
+from core import sleep_placeholder, create_qa_artifact, fake_qa_score, add_to_context, load_context
 
 
 # Target Data Import and Prep
@@ -132,9 +131,15 @@ def extract_transform_load(source_name) -> dict:
 
     logger.info("Returning results of the target data import and prep stage")
     try:
+        qa_score = fake_qa_score("data_import_and_prep", result=calibrated_data)
+        create_qa_artifact(qa_score)
         return calibrated_data
     except NameError:
-        logger.debug(f"Caught NameError attempting return of {calibrated_data}")
+        logger.debug(
+            f"Caught NameError attempting return of generate_and_apply_gain_table output"
+        )
+        qa_score = fake_qa_score("data_import_and_prep", result=transformed_data)
+        create_qa_artifact(qa_score)
         return transformed_data
 
 
