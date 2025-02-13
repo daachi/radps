@@ -6,47 +6,11 @@ import pathlib
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 
-from core import sleep_placeholder, create_qa_artifact
-from stage_data_import_and_prep import (
-    extract_transform_load,
-    apply_caltable
-    )
+from core import sleep_placeholder, create_qa_artifact, fake_qa_score
+from stage_data_import_and_prep import extract_transform_load, apply_caltable
+
 
 # Calibrate Target and Find Continuum
-@task
-def calculate_qa_heuristic() -> dict:
-    print(
-        "Pretending to perform computation that determines a QA score to return to some pipeline context"
-    )
-
-    # contains an iterative solver (sometimes)
-    # for now, just calculate some moments on an array of random data
-    rng = da.random.default_rng()
-    random_array = rng.standard_normal(size=(1000, 1000, 10, 4))
-
-    qa_result = {
-        "stage": da.random.randint(low=1, high=42).compute().item(),
-    }
-
-    # calculate a few statistical moments
-    for order in range(2, 9):
-        metric = da.moment(random_array, order=order).compute().item()
-        qa_result[f"order{order}"] = metric
-
-    # arbitrarily check the value of the last moment to determine Pass/Fail
-    if qa_result[f"order{order}"] > 105:
-        result = True
-    else:
-        result = False
-
-    qa_result["pass"] = result
-
-    print("Calculated a fake QA score. Result:")
-    print(qa_result)
-
-    return qa_result
-
-
 @flow
 def make_dirty_cube(fake_visibilities) -> dict:
     print("Pretending to construct a dirty image cube from some target data")
@@ -105,15 +69,17 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     dummy_caltable = {"gains": da.random.random_sample(size=(4))}
     calibrated_data = apply_caltable(input_data, dummy_caltable, "source_1")
 
-    stage_result = calculate_qa_heuristic()
-    create_qa_artifact(stage_result, artifact_type="table")
+    complicated_score = {}
+    for nn in range(0,9):
+        complicated_score[f"parameter_{nn}"] = fake_qa_score()
+    create_qa_artifact(complicated_score, artifact_type="table")
 
     dirty_cube = make_dirty_cube(calibrated_data)
 
     # just write a slice of our fake image to disk
-    imsave("image.png", calibrated_data["data"]["source_1"][:,:,0,0].compute())
-    stage_result["url"] = pathlib.Path("image.png").resolve().as_uri()
-    create_qa_artifact(stage_result, artifact_type="image")
+    imsave("image.png", calibrated_data["data"]["source_1"][:, :, 0, 0].compute())
+    complicated_score["url"] = pathlib.Path("image.png").resolve().as_uri()
+    create_qa_artifact(complicated_score, artifact_type="image")
 
     continuum_data = find_continuum(dirty_cube)
 
