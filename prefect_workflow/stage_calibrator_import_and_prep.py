@@ -5,6 +5,7 @@ from prefect.logging import get_run_logger
 from prefect.events import emit_event
 from prefect.flow_runs import wait_for_flow_run
 from prefect.deployments import run_deployment
+from stage_data_import_and_prep import fake_archive_query, alma_antpos_query, fake_flagging
 
 from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, create_context, fake_qa_score,
                   qa_failure_condition, add_to_context)
@@ -41,33 +42,6 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False
     return data
 
 
-# NOTE: could be combined with the similar task from target import
-@task(retries=4, tags=["io"])
-def import_data_from_archive(data, failures=False) -> dict:
-    """
-    Simulate importing data from the archive.
-    """
-    sleep_placeholder()
-    if randomly_fail(on=failures):
-        raise Exception("Import data from archive failed")
-    else:
-        return fake_data((1000, 1000))
-
-
-# NOTE: could be combined with the similar task from target flagging
-@task(tags=["flagging"])
-def apply_online_flags(data):
-    sleep_placeholder()
-    return data
-
-
-# NOTE: could be combined with the similar task from target flagging
-@task(tags=["io"])
-def get_antpos_info(data):
-    sleep_placeholder()
-    return fake_data((100, 100))
-
-
 # NOTE: could be combined with the similar task from target flagging
 @task(tags=["heuristics"])
 def create_antpos_table(antenna_position_corrections, data):
@@ -94,13 +68,13 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     context = create_context()
 
     logger.info(f"Importing data from archive for {calibrator}")
-    calibrator_data = import_data_from_archive(calibrator, failures=failures)
+    calibrator_data = fake_archive_query(calibrator, failures=failures)
 
     logger.info(f"Applying online flags for {calibrator}")
-    flagged_data = apply_online_flags(calibrator_data)
+    flagged_data = fake_flagging(calibrator_data, calibrator)
 
     logger.info(f"Getting antenna position information for {calibrator}")
-    antpos_info = get_antpos_info(calibrator)
+    antpos_info = alma_antpos_query(calibrator)
 
     logger.info(f"Creating antenna position table for {calibrator}")
     antpos_table = create_antpos_table(antpos_info, flagged_data)
