@@ -1,13 +1,14 @@
-import asyncio 
+import asyncio
 
-from prefect import flow, task, pause_flow_run
+from prefect import flow, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 from prefect.flow_runs import wait_for_flow_run
 from prefect.deployments import run_deployment
-from stage_data_import_and_prep import fake_archive_query, alma_antpos_query, fake_flagging
+from stage_data_import_and_prep import (fake_archive_query, alma_antpos_query, fake_flagging,
+                                        generate_and_apply_gain_table)
 
-from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, create_context, fake_qa_score,
+from core import (fake_data, create_qa_artifact, create_context, fake_qa_score,
                   qa_failure_condition, add_to_context)
 
 
@@ -42,20 +43,6 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False
     return data
 
 
-# NOTE: could be combined with the similar task from target flagging
-@task(tags=["heuristics"])
-def create_antpos_table(antenna_position_corrections, data):
-    sleep_placeholder()
-    return fake_data((100, 100))
-
-
-# NOTE: could be combined with the similar task from target flagging
-@task(tags=["calibration"])
-def apply_antpos(table, data):
-    sleep_placeholder()
-    return fake_data((1000, 1000))
-
-
 # NOTE: could be combined with the flow to import and prep target data
 @flow(log_prints=True)
 def calibrator_data_import_and_prep(calibrator, failures=False):
@@ -74,18 +61,14 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     flagged_data = fake_flagging(calibrator_data, calibrator)
 
     logger.info(f"Getting antenna position information for {calibrator}")
-    antpos_info = alma_antpos_query(calibrator)
+    antpos_result_json = alma_antpos_query(calibrator)
 
-    logger.info(f"Creating antenna position table for {calibrator}")
-    antpos_table = create_antpos_table(antpos_info, flagged_data)
-
-    logger.info(f"Applying antenna position corrections for {calibrator}")
-    result = apply_antpos(flagged_data, antpos_table)
-    logger.info(f"Result of calibrator data import and prep for {calibrator}: {result}")
+    logger.info(f"Generating and applying antenna position corrections for {calibrator}")
+    generate_and_apply_gain_table(flagged_data, antpos_result_json, calibrator)
 
     logger.info("Updating context and creating QA artifact")
     qa_name = f"calibrator_data_import_and_prep_{calibrator}"
-    qa_score = fake_qa_score(qa_name, result=result)
+    qa_score = fake_qa_score(qa_name)
     create_qa_artifact(qa_score)
     current_context = add_to_context(qa_score, key="qa", stage="calibrator_data_import_and_prep")
 
