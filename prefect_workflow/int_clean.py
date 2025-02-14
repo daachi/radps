@@ -4,7 +4,7 @@ from prefect.events import emit_event
 from prefect.input import RunInput
 import asyncio
 from time import sleep
-
+from stage_image_cont_selfcal import solve
 class UserInput(RunInput):
     cycleniter: int
     threshold: float 
@@ -12,18 +12,21 @@ class UserInput(RunInput):
     interactive: bool = True
 
 @flow
-def clean_engine(niter, iterdone=0, maxiter=None):
+#def clean_engine(niter, iterdone=0, maxiter=None):
+def clean_engine(data, src, niter, iterdone=0, maxiter=None):
     if maxiter is not None and niter+iterdone > maxiter: 
         niter = maxiter - iterdone
         print(f'cycleniter is adjusted to {niter}')
     for i in range(niter):
         sleep(0.5)
+    ret = solve(data, src, combine='scan', niter=niter, soltype='imaging')
     return niter
 
 @flow (log_prints=True)
-async def int_clean(maxiter = 10):
+async def int_clean(data, maxiter = 10):
     # run initial clean
-    niter = clean_engine(1)
+    #niter = clean_engine(1)
+    niter = clean_engine(data, 'target', 1)
     previous_cycleniter = 3
     previous_threshold = 0.1
     iterdone = 0
@@ -56,7 +59,8 @@ async def int_clean(maxiter = 10):
                 emit_event(event=f"clean continue with non-interactive mode using the current parameters", 
                        resource={"prefect.resource.id": "test.id"})
                 print('Continue to finish with non-interactive mode')
-        newniter = clean_engine(user_input.cycleniter, iterdone, maxiter)
+        #newniter = clean_engine(user_input.cycleniter, iterdone, maxiter)
+        newniter = clean_engine(data, 'target', user_input.cycleniter, iterdone, maxiter)
         print(f'iteration done in this cycle: {newniter}')
         previous_cycleniter = user_input.cycleniter
         previous_threshold = user_input.threshold
@@ -71,6 +75,9 @@ async def int_clean(maxiter = 10):
     return iterdone
 
 if __name__ == "__main__":
-    ret = asyncio.run(int_clean())
+    data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
+             'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
+             'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
+    ret = asyncio.run(int_clean(data))
     print(f' done {ret} iterations')
 
