@@ -9,6 +9,7 @@ from stage_image_cont_selfcal import (
     calc_heuristics, 
     archive_export, 
     generate_fake_image,
+    find_data_context,
 )
 from core import (
     fake_qa_score, 
@@ -111,7 +112,7 @@ def uv_continuum_subtraction(data: dict, src: str,
     create_qa_artifact(uvcontsub_qa_result)
     return uvcont_ret
 
-    
+
 @flow(log_prints=True)
 def image_target_cube(data: dict={},src: str='target', 
                       failure_mode: dict={'raise_exception':False, 'failed_spw': -1}):
@@ -135,19 +136,11 @@ def image_target_cube(data: dict={},src: str='target',
     if data == dict():
         print('Loading existing context...')
         if not os.path.exists('context.pkl'): 
-        #if fileexist == False:
             raise OSError("No context.pkl found. Please run previous stages first.")
-            
         else:
             print('context.pkl found. Loading context...')
-            data = load_context()
-            # check if calibrated data exist from previous stage
-            # ToDo: change to use 'stage' key to pull the relevant context
-            if 'calibrated_data' not in data:
-                raise OSError("No calibrated data found. Please run previous stages first.")
-            else:
-                calibrated_data = {key: data['calibrated_data'][key] 
-                                   for key in data['calibrated_data'].keys() & {src}}
+            # Assume find_cont stage's context has a calibrated data
+            calibrated_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
     else:
         calibrated_data = dict(data) 
 
@@ -169,7 +162,6 @@ def image_target_cube(data: dict={},src: str='target',
             print("Archiving the resultant cube images... ") 
             # parallize across fields and spws
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
-            print('image data == ', image_data)
             stored_context = add_to_context(inp=archived_data, key='image', stage='image_cube')
             stored_context = add_to_context(inp=data, key='data', stage='image_cube')
             stored_context = add_to_context(inp=qa_result, key='cube_image_qa', stage='image_cube')
@@ -190,5 +182,12 @@ if __name__ == '__main__':
     data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
              'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
+    use_context = True
+    if use_context:
+        # fix the existing context 
+        context = load_context()
+        if 'findcont' in context and 'datashape' not in context['findcont']:
+            updated_context = add_to_context(data, key='datashape', stage='findcont')
+            data={}
     image_target_cube(data,failure_mode={'raise_exception':False, 'failed_spw':1})
     

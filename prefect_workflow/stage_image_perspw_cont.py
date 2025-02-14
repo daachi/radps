@@ -6,6 +6,7 @@ from stage_image_cont_selfcal import (
     solve, 
     archive_export, 
     generate_image_datashape,
+    find_data_context,
 )
 from core import fake_qa_score, create_qa_artifact, load_context, add_to_context
 
@@ -30,14 +31,7 @@ def image_perspw_cont(data: dict={}, src: str='target') -> dict:
             raise OSError("No context.pkl found. Please run previous stages first.")
         else:
             print('context.pkl found. Loading context...')
-            data = load_context()
-            # check if calibrated data exist from previous stage
-            # ToDo: change to use 'stage' key to pull the relevant context
-            if 'calibrated_data' not in data:
-                raise OSError("No calibrated data found. Please run previous stages first.")
-            else:
-                calibrated_data = {key: data['calibrated_data'][key] 
-                                   for key in data['calibrated_data'].keys() & {src}}
+            calibrated_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
     else:
         calibrated_data = dict(data)
 
@@ -57,7 +51,7 @@ def image_perspw_cont(data: dict={}, src: str='target') -> dict:
     stored_context = add_to_context(inp=archived_data, key='image', stage='image_perspw_cont')
     stored_context = add_to_context(inp=qa_score, key='qa_scores', stage='image_perspw_cont')
     print(f'Final stored context: {stored_context}')
-    create_qa_artifact(qa_score)
+    create_qa_artifact(qa_score, artifact_type="table")
 
     return stored_context
 
@@ -67,4 +61,12 @@ if __name__ == '__main__':
     data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
            'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
            'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'selfcal_sol':'caltable_loc'} }
+
+    use_context = True # to test retrieving input data from the existing context
+    if use_context:
+        # fix the existing context 
+        context = load_context()
+        if 'image_cont_selfcal' in context and 'datashape' not in context['image_cont_selfcal']:
+            updated_context = add_to_context(data, key='datashape', stage='image_cont_selfcal')
+            data={}
     image_perspw_cont(data)

@@ -35,6 +35,25 @@ def generate_fake_image(datashape):
     imageurl = pathlib.Path('fake_image.png').resolve().as_uri()
     return imageurl 
 
+def find_data_context(context, stage, context_key):
+    """ 
+    Find context for a given stage
+    it looks for 'datashape' key in the selected context 
+    dictionary under datashape expected to have 
+    {'source_name':{'n_field':nfield, 'n_spw':nspw, 'n_scan':nscan, 'n_chan':nchan}}
+    """
+    extracted_context={}
+    print(f'{stage} context= {context[stage]}')
+    print(f'{stage} {context_key} context= {context[stage][context_key]}')
+    if stage in context:
+        if context_key in context[stage]:
+            extracted_context = context[stage][context_key]
+        else:
+            raise OSError(f"No {context_key} found in {stage} context")
+    else:
+        raise OSError(f"No {stage} found in context")
+    return extracted_context
+
 
 # Can be re-used across stages but need to be modified to be useful   
 def generate_flow_name() -> str:
@@ -214,14 +233,7 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
             raise OSError("No context.pkl found. Please run previous stages first.")
         else:
             print('context.pkl found. Loading context...')
-            data = load_context()
-            # check if calibrated data exist from previous stage
-            # ToDo: change to use 'stage' key to pull the relevant context
-            if 'calibrated_data' not in data:
-                raise OSError("No calibrated data found. Please run previous stages first.")
-            else:
-                calibrated_data = {key: data['calibrated_data'][key] 
-                                   for key in data['calibrated_data'].keys() & {src}}
+            extracted_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
     else:
         calibrated_data = dict(data)
     
@@ -242,12 +254,12 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
         while(selfcal_hueristics):
             with tags('gain calibration'):
                 cal_table = solve(calibrated_data,src='target',combine='spw')
-            updated_data = applymodel(cal_table,inp, src='target') ## Apply caltables.
+            with tags('apply caltable'):
+                updated_data = applymodel(cal_table, data, src='target')
             with tags('selfcal imaging'):
-                updated_image = solve(updated_data,src='target',combine='both',soltype='imaging') 
-            # Save model visibilities
-            updated_model_data = applymodel(updated_data,inp,src='target')
-            #qascore = calc_qa(updated_image)
+                updated_image = solve(updated_data, src='target', combine='both', soltype='imaging') 
+            with tags('save model vis'):
+                updated_model_data = applymodel(updated_data, data, src='target')
             qa_return = fake_qa_score('image_SNR')
             snr = dict()
             snr['image_SNR'] = 10*qa_return['image_SNR'] # make fake SNR using qa value
@@ -284,14 +296,19 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     print(f'Final stored context: {stored_context}')    
     qa_scores = create_selfcal_qa_scores(selfcalresult)
     create_qa_artifact(qa_scores, artifact_type='table')   
-    #create_qa_artifact(selfcalresult[lastiter]['QA'], artifact_type='table')   
-    #create_qa_artifact(selfcalresult[lastiter]['QA'])   
     return updated_image
 
 
 if __name__ == "__main__":
-   inp = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
+    data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
              'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
-   #task_solve(inp,datashape,src='target')
-   image_cont_selfcal(inp, doselfcal=True)
+                
+    use_context = True
+    if use_context:
+        # fix the existing context 
+        context = load_context()
+        if 'findcont' in context and 'datashape' not in context['findcont']:
+            updated_context = add_to_context(data, key='datashape', stage='findcont')
+            data={}
+    image_cont_selfcal(data, doselfcal=True)
