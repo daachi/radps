@@ -6,7 +6,13 @@ import pathlib
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 
-from core import sleep_placeholder, create_qa_artifact, fake_qa_score
+from core import (
+    sleep_placeholder,
+    create_qa_artifact,
+    fake_qa_score,
+    load_context,
+    add_to_context,
+)
 from stage_data_import_and_prep import extract_transform_load, apply_caltable
 
 
@@ -63,25 +69,38 @@ def find_continuum(dirty_cube) -> dict:
 
 @flow(log_prints=True)
 def calibrate_target_and_find_continuum(input_data) -> dict:
+    findcont_context = load_context()
+    print(f"Initial context: {findcont_context}")
     print(
         "Starting a pipeline stage that applies calibration to target and finds line-free continuum"
     )
     dummy_caltable = {"gains": da.random.random_sample(size=(4))}
     calibrated_data = apply_caltable(input_data, dummy_caltable, "source_1")
 
+    dirty_cube = make_dirty_cube(calibrated_data)
+    findcont_context = add_to_context({"cube": dirty_cube}, "data", stage="findcont")
+    print(f"Updated context: {findcont_context}")
+
+    # do some QA stuff
     complicated_score = {}
-    for nn in range(0,9):
+    for nn in range(0, 9):
         complicated_score[f"parameter_{nn}"] = fake_qa_score()
     create_qa_artifact(complicated_score, artifact_type="table")
-
-    dirty_cube = make_dirty_cube(calibrated_data)
-
-    # just write a slice of our fake image to disk
+    # write a slice of our fake image to disk
     imsave("image.png", calibrated_data["data"]["source_1"][:, :, 0, 0].compute())
+
     complicated_score["url"] = pathlib.Path("image.png").resolve().as_uri()
     create_qa_artifact(complicated_score, artifact_type="image")
 
+    findcont_context = add_to_context(dirty_cube, "data", stage="findcont")
+    print(f"Updated context again: {findcont_context}")
+
     continuum_data = find_continuum(dirty_cube)
+
+    findcont_context = add_to_context(
+        {"continuum": continuum_data}, "data", stage="findcont"
+    )
+    print(f"Final context: {findcont_context}")
 
     return dirty_cube, continuum_data
 
