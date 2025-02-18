@@ -83,9 +83,9 @@ def calc_heuristics(data, type=''):
 @task
 def solve_model(data, id, niter=2):
     for i in range(0,niter):
-        calc_update_direction(inp,id)
-        update_model(inp,id)
-        check_converge(inp,id)
+        calc_update_direction(data,id)
+        update_model(data,id)
+        check_converge(data,id)
     return
 
 @task # in-algorithm parallelism

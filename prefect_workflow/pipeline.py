@@ -40,7 +40,7 @@ def pipeline():
     bandpass_solve(calibrators[0], imported_calibrators[0])
 
     # Time Gain Solve
-    time_gain_solve(imported_calibrators[1])
+    time_gain_solve(calibrators[1], imported_calibrators[1])
 
     # Image Calibrators
     for source in calibrators:
@@ -79,6 +79,7 @@ def pipeline():
         cleaned_target_cont_image = image_cont_selfcal(calibrated_target_data,doselfcal=doSelfCal)
         # Per-SPW Continuum Imaging
         per_spw_target_cont_image = image_perspw_cont(calibrated_target_data)
+
 
 if __name__ == "__main__":
     pipeline()

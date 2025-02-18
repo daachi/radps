@@ -1,10 +1,9 @@
 from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
-from stage_image_cont_selfcal import solve
 from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
                   qa_failure_condition, load_context, add_to_context)
-from stage_image_cont_selfcal import find_data_context 
+from stage_image_cont_selfcal import find_data_context, solve
 
 
 # Bandpass Solution
@@ -60,16 +59,15 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     print("staritng context as of bandpass  solve")
     print(context)
 
-    if bpcal is None:
-        try:
-            bpcal = find_data_context(context, stage="stage_calibrator_data_import_and_prep", context_key='datashape')
-        except:
-            data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
-                    'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
-                    'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
-            bpcal = {}
-            bpcal['datashape'] = {}
-            bpcal['datashape'][bpcal_name] = dict(data[bpcal_name])
+    try:
+        bpcal = find_data_context(context, stage="stage_calibrator_data_import_and_prep", context_key='datashape')
+    except:
+        data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
+                'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
+                'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
+        bpcal = {}
+        bpcal['datashape'] = {}
+        bpcal['datashape'][bpcal_name] = dict(data[bpcal_name])
 
     logger.info(f"Flagging bandpass data for {bpcal_name}")
     flagged_bandpass = autoflag_bandpass(bpcal)
