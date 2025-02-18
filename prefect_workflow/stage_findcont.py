@@ -96,10 +96,15 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     print(f"Updated context again: {findcont_context}")
 
     continuum_data = find_continuum(dirty_cube)
+    # TODO: update find_continuum to output the dummy data expected by subsequent stages
+    # until then, we'll just add it here
+    data = {
+        "bcal": {"n_field": 1, "n_spw": 3, "n_scan": 1},
+        "gcal": {"n_field": 1, "n_spw": 3, "n_scan": 4},
+        "target": {"n_field": 1, "n_spw": 3, "n_scan": 5},
+    }
 
-    findcont_context = add_to_context(
-        {"continuum": continuum_data}, "data", stage="findcont"
-    )
+    findcont_context = add_to_context(data, "datashape", stage="findcont")
     print(f"Final context: {findcont_context}")
 
     return dirty_cube, continuum_data
