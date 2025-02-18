@@ -59,19 +59,27 @@ helm repo add "stable" "https://charts.helm.sh/stable"
 ```
 
 ### Deploying a local Kubernetes cluster:
-
+Using k3d to spin up a cluster is as quick and easy as running a command like this:
 ```
 k3d cluster create --agents 2 --agents-memory=4GB --image=rancher/k3s:v1.31.4-k3s1
 ```
+After a short while, the cluster will have been created and can be interacted with in the normal way using kubectl:
+```
+# to examine some properties of the running cluster
+kubectl cluster-info
+kubectl get nodes
+kubectl get pods
+kubectl get svc
+```
 
-Installing a basic Prefect deployment:
+Installing a basic Prefect deployment onto this local Kubernetes cluster is similarly straightforward using helm:
 ```
 helm repo add prefect https://prefecthq.github.io/prefect-helm
 helm install prefect-server prefect/prefect-server
 helm install prefect-worker prefect/prefect-worker -f charts/worker-manifest.yaml
 ```
 
-### Exposing dashboard UI on the default port from a localized k8s cluster:
+Exposing dashboard UI on the default port from a localized k8s cluster:
 ```
 kubectl --namespace default port-forward svc/prefect-server 4200:4200 &
 ```
@@ -84,4 +92,6 @@ http://127.0.0.1:4200/dashboard
 prefect worker start --pool "Test" &
 # create a deployment
 python prefect_workflow/deploy.py &
+# run the example pipeline
+python prefect_workflow/pipeline.py
 ```
