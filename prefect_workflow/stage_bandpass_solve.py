@@ -1,15 +1,17 @@
 from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
-
+from stage_image_cont_selfcal import solve
 from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
                   qa_failure_condition, load_context, add_to_context)
+from stage_image_cont_selfcal import find_data_context 
 
 
 # Bandpass Solution
 @task(tags=["flagging"])
 def autoflag_bandpass(bp_data):
     sleep_placeholder()
+    return bp_data
 
 
 @task(retries=4, tags=["io"])
@@ -28,11 +30,12 @@ def calmod(bandpass_calibrator):
 @task(tags=["imaging"])
 def save_model_vis(bp_data):
     sleep_placeholder()
+    return bp_data
 
 
 @task(tags=["calibration"])
-def amp_phase_solve(bp_data):
-    sleep_placeholder()
+def amp_phase_solve(bp_data, src):
+    return solve(bp_data['datashape'], src=src, combine='scan')
 
 
 @task(tags=["qa"])
@@ -46,7 +49,7 @@ def bandpass_qa_score(bp_data, bpcal) -> dict:
 
 
 @flow(log_prints=True)
-def bandpass_solve(bpcal_name, bpcal, failures=False):
+def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     """
     Do the bandpass solution
     """
@@ -56,6 +59,17 @@ def bandpass_solve(bpcal_name, bpcal, failures=False):
     context = load_context()
     print("staritng context as of bandpass  solve")
     print(context)
+
+    if bpcal is None:
+        try:
+            bpcal = find_data_context(context, stage="stage_calibrator_data_import_and_prep", context_key='datashape')
+        except:
+            data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
+                    'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
+                    'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
+            bpcal = {}
+            bpcal['datashape'] = {}
+            bpcal['datashape'][bpcal_name] = dict(data[bpcal_name])
 
     logger.info(f"Flagging bandpass data for {bpcal_name}")
     flagged_bandpass = autoflag_bandpass(bpcal)
@@ -70,7 +84,7 @@ def bandpass_solve(bpcal_name, bpcal, failures=False):
     flagged_bandpass_saved_model = save_model_vis(flagged_bandpass)
 
     logger.info(f"Calculating bandpass solution for {bpcal_name}")
-    bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model)  # TODO: expand this out to the solver loop
+    bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model, bpcal_name)
     qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal_name)
 
     logger.info("Updating context and creating QA artifact")
@@ -88,4 +102,13 @@ def bandpass_solve(bpcal_name, bpcal, failures=False):
 
 
 if __name__ == "__main__":
-    bandpass_solve()
+    bpcal_name = "bpcal"
+
+    data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
+            'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
+            'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
+    bpcal = {}
+    bpcal['datashape'] = {}
+    bpcal['datashape'][bpcal_name] = dict(data[bpcal_name])
+
+    bandpass_solve(bpcal_name, bpcal)
