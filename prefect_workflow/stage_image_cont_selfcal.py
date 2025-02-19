@@ -114,7 +114,7 @@ def check_converge(data, id=0):
     return
 
 @task
-def applymodel(inp, datashape, src):
+def applymodel_func(inp, datashape, src, id=0):
    """ Apply calibration model """ 
    sleep_placeholder(1.0)
    return datashape
@@ -125,6 +125,20 @@ def archive_export_func(inp,id=0):
     """Archive and export results"""
     sleep_placeholder(1.0)
     return 'data_'+str(id)
+
+@flow
+def applymodel(inp, datashape, src):
+    """ Apply model via parallelization"""
+    n_field = datashape[src]['n_field']
+    n_spw = datashape[src]['n_spw']
+    n_scan = datashape[src]['n_scan']
+
+    applymodel_par = [] 
+    applymodel_res = []
+    for i in range(0, n_field*n_spw*n_scan):
+        applymodel_par.append(applymodel_func.submit(inp, datashape, src, i))
+    applymodel_res = [applymodel_future.result() for applymodel_future in applymodel_par]
+    return datashape
 
 @flow
 def archive_export(data, src, paraxes='fieldandspw') -> list:
@@ -233,7 +247,7 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
             raise OSError("No context.pkl found. Please run previous stages first.")
         else:
             print('context.pkl found. Loading context...')
-            extracted_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
+            calibrated_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
     else:
         calibrated_data = dict(data)
     
@@ -276,10 +290,10 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
                 if selfcalresult[count]['QA']['image_SNR'] < selfcalresult[count-1]['QA']['image_SNR']:
                     selfcal_hueristics = False # stop selfcal as SNR degraded.
                     lastiter = count-1
-                elif count == 2: 
-                    print("Iteration count limit reached for selfcal loop")
-                    lastiter = count
-                    selfcal_hueristics = False
+            if count == 2: 
+                print("Iteration count limit reached for selfcal loop")
+                lastiter = count
+                selfcal_hueristics = False
             else:
                 count += 1
     else:
