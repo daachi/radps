@@ -13,20 +13,22 @@ class UserInput(RunInput):
 
 @flow
 #def clean_engine(niter, iterdone=0, maxiter=None):
-def clean_engine(data, src, niter, iterdone=0, maxiter=None):
+def clean_engine(data, src, niter, iterdone=0, combine=None, soltype=None, maxiter=None):
     if maxiter is not None and niter+iterdone > maxiter: 
         niter = maxiter - iterdone
         print(f'cycleniter is adjusted to {niter}')
     for i in range(niter):
         sleep(0.5)
-    ret = solve(data, src, combine='scan', niter=niter, soltype='imaging')
-    return niter
+    ret = solve(data, src, combine=combine, niter=niter, soltype=soltype)
+    ret['niter']=niter
+    return ret 
 
 @flow (log_prints=True)
-async def int_clean(data, maxiter = 10):
+async def int_clean(data, src, combine='scan', soltype='cube_imaging', maxiter=10):
     # run initial clean
     #niter = clean_engine(1)
-    niter = clean_engine(data, 'target', 1)
+    ret = clean_engine(data, 'target', 1, combine=combine, soltype=soltype)
+    niter = ret['niter']
     previous_cycleniter = 3
     previous_threshold = 0.1
     iterdone = 0
@@ -60,7 +62,14 @@ async def int_clean(data, maxiter = 10):
                        resource={"prefect.resource.id": "test.id"})
                 print('Continue to finish with non-interactive mode')
         #newniter = clean_engine(user_input.cycleniter, iterdone, maxiter)
-        newniter = clean_engine(data, 'target', user_input.cycleniter, iterdone, maxiter)
+        ret = clean_engine(data, 
+                           'target', 
+                           user_input.cycleniter, 
+                           iterdone, 
+                           combine=combine,
+                           soltype=soltype,
+                           maxiter=maxiter)
+        newniter = ret['niter']
         print(f'iteration done in this cycle: {newniter}')
         previous_cycleniter = user_input.cycleniter
         previous_threshold = user_input.threshold
@@ -72,12 +81,14 @@ async def int_clean(data, maxiter = 10):
            print('Reached iteration limit')
            break
     #print(f'maxiter={maxiter}, iterdone={iterdone}')
-    return iterdone
+    ret['iterdone'] = iterdone
+    ret.update(data)
+    return ret 
 
 if __name__ == "__main__":
     data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
              'target':{'n_field':1, 'n_spw':3, 'n_scan':5} }
-    ret = asyncio.run(int_clean(data))
+    ret = asyncio.run(int_clean(data,'target'))
     print(f' done {ret} iterations')
 

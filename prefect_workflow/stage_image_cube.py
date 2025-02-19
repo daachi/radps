@@ -3,6 +3,8 @@
 from prefect import task, flow
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
+import asyncio
+
 # import imaging stage specific functions
 from stage_image_cont_selfcal import (
     solve,  
@@ -11,6 +13,9 @@ from stage_image_cont_selfcal import (
     generate_fake_image,
     find_data_context,
 )
+from int_clean import int_clean
+
+# import re-used functions
 from core import (
     fake_qa_score, 
     create_qa_artifact,
@@ -115,7 +120,7 @@ def uv_continuum_subtraction(data: dict, src: str,
 
 @flow(log_prints=True)
 def image_target_cube(data: dict={},src: str='target', 
-                      failure_mode: dict={'raise_exception':False, 'failed_spw': -1}):
+                      failure_mode: dict={'raise_exception':False, 'failed_spw': -1}, interactive=False):
     """ 
     Cube imaging on target
 
@@ -156,8 +161,19 @@ def image_target_cube(data: dict={},src: str='target',
             # uvcontsub
             uvcontsub_res = uv_continuum_subtraction(has_spectraldata, src, failure_mode)
             cur_context = add_to_context(uvcontsub_res, key='uvcontsub', stage='image_cube') 
-            image_data = solve(uvcontsub_res['datashape'], src='target', 
-                          combine='scan', soltype='cube_imaging')
+            if interactive:
+                # use default maxiter  = 10
+                print("Calling INT_CLEAN...")
+
+                image_data = asyncio.run(int_clean(uvcontsub_res['datashape'], 
+                                       src=src, 
+                                       combine='scan', 
+                                       soltype='cube_imaging'))
+            else:
+                image_data = solve(uvcontsub_res['datashape'], 
+                                   src=src, 
+                                   combine='scan', 
+                                   soltype='cube_imaging')
             qa_result = cubeimage_qa_score(image_data)
             print("Archiving the resultant cube images... ") 
             # parallize across fields and spws
@@ -189,5 +205,5 @@ if __name__ == '__main__':
         if 'findcont' in context and 'datashape' not in context['findcont']:
             updated_context = add_to_context(data, key='datashape', stage='findcont')
             data={}
-    image_target_cube(data,failure_mode={'raise_exception':False, 'failed_spw':1})
+    image_target_cube(data,failure_mode={'raise_exception':False, 'failed_spw':1}, interactive=False)
     
