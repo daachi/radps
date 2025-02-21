@@ -1,6 +1,9 @@
 #per-SPW continuum imaging
 import os
+import asyncio
+
 from prefect import task, flow
+# import imaging stage specific functions
 from stage_image_cont_selfcal import (
     applymodel, 
     solve, 
@@ -8,6 +11,9 @@ from stage_image_cont_selfcal import (
     generate_image_datashape,
     find_data_context,
 )
+from int_clean import int_clean
+
+# import re-used functions
 from core import fake_qa_score, create_qa_artifact, load_context, add_to_context
 
 @task
@@ -20,7 +26,7 @@ def perspw_cont_imaging_qa_score(image_data):
     return retdict
 
 @flow(log_prints=True)
-def image_perspw_cont(data: dict={}, src: str='target') -> dict:
+def image_perspw_cont(data: dict={}, src: str='target', interactive: bool=False) -> dict:
     """
     per-SPW continuum imaging 
     """
@@ -35,18 +41,22 @@ def image_perspw_cont(data: dict={}, src: str='target') -> dict:
     else:
         calibrated_data = dict(data)
 
+    res2 = dict(calibrated_data)
     # check if selcal is done
     # and if that is the case, apply best calibration solution to data
     if 'selfcal_sol' in calibrated_data[src]:
         print("Selfcal solution found, applying to data")
         caltable = calibrated_data[src]['selfcal_sol']
-        res2 = applymodel(caltable, calibrated_data, src='target')
+        res2 = applymodel(caltable, calibrated_data, src)
     # do per spw imaging (solve per spw and field)
-    image_data = solve(res2, src='target', combine='scan', soltype='imaging')
+    if interactive:
+        image_data = asyncio.run(int_clean(res2, src, combine='scan', soltype='imaging'))
+    else:
+        image_data = solve(res2, src, combine='scan', soltype='imaging')
     qa_score = perspw_cont_imaging_qa_score(image_data)
     #qa_score['perspw_cont_image'] = image_data
     # export data
-    archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
+    archived_data = archive_export(image_data, src, paraxes='fieldandspw')
     #store context
     stored_context = add_to_context(inp=archived_data, key='image', stage='image_perspw_cont')
     stored_context = add_to_context(inp=qa_score, key='qa_scores', stage='image_perspw_cont')
@@ -69,4 +79,4 @@ if __name__ == '__main__':
         if 'image_cont_selfcal' in context and 'datashape' not in context['image_cont_selfcal']:
             updated_context = add_to_context(data, key='datashape', stage='image_cont_selfcal')
             data={}
-    image_perspw_cont(data)
+    image_perspw_cont(data, src='target', interactive=False)

@@ -20,10 +20,19 @@ from stage_image_cont_selfcal import generate_vis_datashape
 
 
 @flow(log_prints=True)
-def pipeline():
+def pipeline(imaging='cube', interactive=False):
     """
     Example pipeline implementation in Prefect from Figure 1 of "An Example RADPS Workflow Decomposition"
+    
+    Parameters
+      imaging : 'cube', 'cont', or 'contselfcal' 
+      interactive : interactive clean (only valid for 'cube' or 'cont')
     """
+    if imaging not in ['cube', 'cont', 'contselfcal']:
+        raise ValueError("imaging must be 'cube', 'cont', or 'contselfcal'")
+    elif imaging == 'contselfcal' and interactive:
+        raise ValueError("interactive imaging is only supported for  'cube' or 'cont'")
+    
     # Calibrator Data Import and Prep
     calibrators = ["J1752-2956", "J1851+0035"]
 
@@ -60,26 +69,36 @@ def pipeline():
     # Calibrate Target and Find Continuum
     dirty_image, findcont = calibrate_target_and_find_continuum(target_data)
 
-    # some imaging intent flags should be here
-
-    # run all target imaging stages (both cube and continuum)
-    #doCubeImaging, doContImaging, doSelfCal = True, True, True
-    # Cube imging only
-    doCubeImaging, doContImaging, doSelfCal = True, False, False
-    # Continuum imaging + selfcal
-    #doCubeImaging, doContImaging, doSelfCal = False, True, True
-
-    calibrated_target_data = generate_vis_datashape(addchan=doCubeImaging)
-    if doCubeImaging:
+    calibrated_target_data={}
+    # To avoild failure for no datashape context
+    if imaging == 'cube':
+        addchan = True
+    else:
+        addchan = False
+    calibrated_target_data = generate_vis_datashape(addchan=addchan)
+    
+    if imaging == 'cube': 
         # Cube Imaging
-        cleaned_target_cube_image = image_target_cube(calibrated_target_data)
-
-    if doContImaging:
+        cleaned_target_cube_image = image_target_cube(calibrated_target_data, interactive=interactive)
+    elif imaging == 'cont': # no self-calibration
+        # Per-SPW Continuum Imaging
+        per_spw_target_cont_image = image_perspw_cont(calibrated_target_data, interactive=interactive)
+    elif imaging == 'contselfcal':    
         # Continuum Imaging with Self-Calibration
-        cleaned_target_cont_image = image_cont_selfcal(calibrated_target_data,doselfcal=doSelfCal)
+        cleaned_target_cont_image = image_cont_selfcal(calibrated_target_data,doselfcal=True)
         # Per-SPW Continuum Imaging
         per_spw_target_cont_image = image_perspw_cont(calibrated_target_data)
 
-
 if __name__ == "__main__":
-    pipeline()
+
+    import sys
+    imaging = 'cube'
+    interactive = False
+        
+    if len(sys.argv) == 2:
+        imaging = sys.argv[1]
+    elif len(sys.argv) == 3:
+        interactive = bool(sys.argv[2])
+    
+    pipeline(imaging, interactive) 
+
