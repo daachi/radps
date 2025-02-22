@@ -159,7 +159,10 @@ def archive_export(data, src, paraxes='fieldandspw') -> list:
         exp_par.append(archive_export_func.submit(data,i))
     
     sleep_placeholder(1.0)
-    return [j.result() for j in exp_par]
+
+    exp_res = [j.result() for j in exp_par]
+    print('exp_res: ', exp_res)
+    return 
 
 def create_selfcal_qa_scores(selfcal_result):
     """ Create QA scores for selfcal """

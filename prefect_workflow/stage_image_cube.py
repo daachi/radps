@@ -31,15 +31,19 @@ def cubeimage_qa_score(image_data):
     """ Calculate QA score for cube images"""
     sleep_placeholder(1.0) 
     qascore = fake_qa_score('cubeimage_qa_score')
-    qascore["cube_image_data"] = image_data 
     return qascore
 
 @task
 def uvcontsub_qa_score(uvcontsub_res):
     """ Calculate QA score for uvcontsub"""
+    qascores = {}
     sleep_placeholder(1.0) 
-    qascore = fake_qa_score('uvcontsub_qa_score')
-    return qascore
+    for i in range(len(uvcontsub_res['uvcontsub_result'][0])):
+        if uvcontsub_res['uvcontsub_result'][0][i] == 'Pass':
+            qascores.update(fake_qa_score(f'uvcontsub_qa_score spw{i}'))
+        else:
+            qascores.update({f'uvcontsub_qa_score spw{i}': 0.0})
+    return qascores
 
 @task
 def uvcontsub(inp: dict, spwid: int=0, spw_for_trigger_partial_failure: int=-1 ):
@@ -91,8 +95,8 @@ def uv_continuum_subtraction(data: dict, src: str,
     n_field = data[src]['n_field']
     n_spw = data[src]['n_spw']
     n_scan = data[src]['n_scan']
-    uvcont_ret = dict()
-    uvcont_par=[]
+    uvcontsub_ret = dict()
+    uvcontsub_par=[]
     # parallel processing across fields and scans 
     print(f"Concurrently process uvcontsub across n_field({n_field}) and scans({n_scan}).")
     for ipar in range(n_field*n_scan):
@@ -102,20 +106,21 @@ def uv_continuum_subtraction(data: dict, src: str,
             # spw_par stores PrefectFuture objects
             # future.results() by default raise an exception if submitted task fails
             spw_par.append(uvcontsub.submit(data,ispw,failed_spw))
-        uvcont_par.append([i.result(raise_on_failure=raise_exception) for i in spw_par]) 
+        uvcontsub_par.append([i.result(raise_on_failure=raise_exception) for i in spw_par]) 
     # ex for getting failed state from future 
     for i in spw_par:
         if i.state.is_failed():
             print(f'uvcontsub failed for {i}')
 
-    uvcont_ret['uvcont_result']=uvcont_par
-    uvcont_ret['datashape'] = {}
-    uvcont_ret['datashape'][src] = dict(data[src])
-    print('uvcont_ret=',uvcont_ret)
-    uvcontsub_qa_result = uvcontsub_qa_score(uvcont_ret) 
-    uvcont_ret['qa_result'] = uvcontsub_qa_result
-    create_qa_artifact(uvcontsub_qa_result)
-    return uvcont_ret
+    # 
+    uvcontsub_ret['uvcontsub_result']=uvcontsub_par
+    uvcontsub_ret['datashape'] = {}
+    uvcontsub_ret['datashape'][src] = dict(data[src])
+    uvcontsub_qa_result = uvcontsub_qa_score(uvcontsub_ret) 
+    uvcontsub_ret['qa_result'] = uvcontsub_qa_result
+    add_to_context(uvcontsub_qa_result, key='qa', stage='image_cube')
+    create_qa_artifact(uvcontsub_qa_result, artifact_type = "table")
+    return uvcontsub_ret
 
 
 @flow(log_prints=True)
@@ -145,9 +150,10 @@ def image_target_cube(data: dict={},src: str='target',
         else:
             print('context.pkl found. Loading context...')
             # Assume find_cont stage's context has a calibrated data
-            calibrated_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
+            extracted_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
+            calibrated_data = {key: extracted_data[key] for key in extracted_data.keys() if key in [src]} 
     else:
-        calibrated_data = dict(data) 
+        calibrated_data = {key: data[key] for key in data.keys() if key in [src]} 
 
     print(f"Input calibrated_data: {calibrated_data}")
     # Do spectral line existance check and return relevant data
@@ -160,11 +166,11 @@ def image_target_cube(data: dict={},src: str='target',
         try:  
             # uvcontsub
             uvcontsub_res = uv_continuum_subtraction(has_spectraldata, src, failure_mode)
-            cur_context = add_to_context(uvcontsub_res, key='uvcontsub', stage='image_cube') 
+            cur_context = add_to_context({'spectral_data':{'datashape':uvcontsub_res['datashape']}}, 
+                                         key='data', 
+                                         stage='image_cube') 
             if interactive:
                 # use default maxiter  = 10
-                print("Calling INT_CLEAN...")
-
                 image_data = asyncio.run(int_clean(uvcontsub_res['datashape'], 
                                        src=src, 
                                        combine='scan', 
@@ -176,11 +182,15 @@ def image_target_cube(data: dict={},src: str='target',
                                    soltype='cube_imaging')
             qa_result = cubeimage_qa_score(image_data)
             print("Archiving the resultant cube images... ") 
-            # parallize across fields and spws
+            
+            # parallelize across fields and spws
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
-            stored_context = add_to_context(inp=archived_data, key='image', stage='image_cube')
-            stored_context = add_to_context(inp=data, key='data', stage='image_cube')
-            stored_context = add_to_context(inp=qa_result, key='cube_image_qa', stage='image_cube')
+
+            # store data, image(info), qa to the context
+            stored_context = add_to_context(inp=calibrated_data, key='datashape', stage='image_cube')
+            stored_context = add_to_context(inp={'image':{'cube':image_data['image']}}, key='data', stage='image_cube')
+            stored_context = add_to_context(inp=qa_result, key='qa', stage='image_cube')
+            
             # fake artifact generation
             create_qa_artifact(qa_result, artifact_type = "table")
             image_result = dict()
