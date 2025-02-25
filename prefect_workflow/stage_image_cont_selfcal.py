@@ -65,6 +65,16 @@ def generate_flow_name() -> str:
         typeparam = flow_params['soltype']
     return f"{typeparam}_{flow_name}"
 
+def reformat_selfcal_result(selfcal_result:dict) -> dict:
+    """ Reformat selfcal result for storage """
+    data_result = {'image':{}, 'caltables':{}}
+    qa_result = {}
+    for soltype in selfcal_result:
+        data_result['image'].update({soltype: selfcal_result[soltype]['updated_image']['image']})
+        data_result['caltables'].update({soltype: selfcal_result[soltype]['caltable']})
+        qa_result.update({f'{soltype}_selfcal': selfcal_result[soltype]['QA']})
+    return data_result, qa_result 
+
 # Imaging stage specific functions
 @task
 def data_prep(data):
@@ -161,15 +171,7 @@ def archive_export(data, src, paraxes='fieldandspw') -> list:
     sleep_placeholder(1.0)
 
     exp_res = [j.result() for j in exp_par]
-    print('exp_res: ', exp_res)
     return 
-
-def create_selfcal_qa_scores(selfcal_result):
-    """ Create QA scores for selfcal """
-    qa_scores={}
-    for i in selfcal_result:
-        qa_scores['selfcal_Iter_'+str(i)] = selfcal_result[i]['QA']
-    return qa_scores
 
 @flow(flow_run_name=generate_flow_name)
 def solve(data, src, combine=None, niter=2, soltype='calibration'):
@@ -226,7 +228,10 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
                 model_future.wait()
             model_par.append(model)
         if ret==dict() and type == 'calibration':
-            ret = model_par
+            ret = model_par  # currently this contains an empty list
+            # add a fake caltable info. 
+            ret['caltables'] = 'caltable_loc'
+
         elif 'imaging' in soltype:
             # add input vis data(shape) info 
             srcdata = dict()
@@ -253,7 +258,9 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
             calibrated_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
     else:
         calibrated_data = dict(data)
-    
+
+     # extract only target data
+    calibrated_data = {key: data[key] for key in data.keys() if key in [src]}    
     # make aggregate continuum image
     with tags('Initial imaging pre-selfcal'):
         target_image_data = solve(calibrated_data,
@@ -266,10 +273,11 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     selfcal_hueristics = True
     count = 0
     lastiter = 0
+    selfcal_soltypes = ['p0','p1','p2','ap0']
     if qa_result and doselfcal: # QA passes and selfcal is requested
          # selfcal iteration loop
         while(selfcal_hueristics):
-            with tags('gain calibration'):
+            with tags('gain calibration '+selfcal_soltypes[count]):
                 cal_table = solve(calibrated_data,src='target',combine='spw')
             with tags('apply caltable'):
                 updated_data = applymodel(cal_table, data, src='target')
@@ -280,9 +288,13 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
             qa_return = fake_qa_score('image_SNR')
             snr = dict()
             snr['image_SNR'] = 10*qa_return['image_SNR'] # make fake SNR using qa value
-            selfcalresult[count]=dict()
-            selfcalresult[count]['updated_image']=updated_image
-            selfcalresult[count]['QA'] = snr 
+            
+            soltype = selfcal_soltypes[count]
+            selfcalresult[soltype]={}
+            selfcalresult[soltype]['caltable'] = f'{soltype}_caltable_loc'
+            selfcalresult[soltype]['updated_image']=updated_image
+            selfcalresult[soltype]['QA'] = snr 
+
             # Currently, selfcal_hueristics is a boolean but in real case
             # this should include new parameters to solve in next self-cal cycle....
             selfcal_hueristics = calc_heuristics(selfcalresult,type='boolean')   
@@ -290,10 +302,10 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
             # to previous images/vis data as final result
             # get out of loop for now (assuming 'stop selfcal' condition reached) 
             if count != 0:
-                if selfcalresult[count]['QA']['image_SNR'] < selfcalresult[count-1]['QA']['image_SNR']:
+                if selfcalresult[soltype]['QA']['image_SNR'] < selfcalresult[selfcal_soltypes[count-1]]['QA']['image_SNR']:
                     selfcal_hueristics = False # stop selfcal as SNR degraded.
                     lastiter = count-1
-            if count == 2: 
+            if count == len(selfcal_soltypes) - 1 :
                 print("Iteration count limit reached for selfcal loop")
                 lastiter = count
                 selfcal_hueristics = False
@@ -306,13 +318,17 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     # selfcal loop and before saving the results. 
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
-    archived_data = archive_export(selfcalresult[lastiter]['updated_image'],
+    print(f'Archiving final (best SNR) image: {selfcal_soltypes[lastiter]} image ')
+    archived_data = archive_export(selfcalresult[selfcal_soltypes[lastiter]]['updated_image'],
                                    src='target',paraxes='field')
-    stored_context = add_to_context(inp=selfcalresult, key='selfcal_result', 
+    
+    # Re-arrange selfcal result dictionary for storage
+    data_results, qa_results = reformat_selfcal_result(selfcalresult)
+    stored_context = add_to_context(inp=data_results, key='data', 
                                     stage='image_cont_selfcal')
+    stored_context = add_to_context(inp={src: calibrated_data[src]}, key='datashape', stage='image_cont_selfcal' )                                 
     print(f'Final stored context: {stored_context}')    
-    qa_scores = create_selfcal_qa_scores(selfcalresult)
-    create_qa_artifact(qa_scores, artifact_type='table')   
+    create_qa_artifact(qa_results, artifact_type='table')   
     return updated_image
 
 
