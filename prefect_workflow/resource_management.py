@@ -12,7 +12,7 @@ def connect_to_scheduler():
 
     try:
         print("Attempting to connect pipeline to existing resource manager")
-        client = dask.distributed.Client("tcp://127.0.0.1:8080")
+        client = dask.distributed.Client("tcp://127.0.0.1:8080", timeout=5)
         tr = DaskTaskRunner(address=client.scheduler.address)
         ## Cf.
         # cluster = dask.distributed.LocalCluster()
