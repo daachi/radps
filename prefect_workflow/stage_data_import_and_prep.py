@@ -1,13 +1,13 @@
 import requests
 import dask.array as da
-from dask.distributed import Client
-import dask.config 
 from matplotlib.image import imsave
 import pathlib
 
 from prefect import flow, task
 from prefect.cache_policies import TASK_SOURCE
 from prefect.logging import get_run_logger
+from prefect_dask import DaskTaskRunner
+import dask.distributed
 
 from core import (
     sleep_placeholder,
@@ -16,11 +16,23 @@ from core import (
     add_to_context,
     load_context,
     randomly_fail,
+    fake_data_generator,
 )
 
-#client = Client("tcp://10.43.89.250:8786")
-client = Client("tcp://127.0.0.1:8786")
-dask.config.set(scheduler='distributed')
+
+try:
+   print("Attempting to connect pipeline to existing resource manager")
+   client = dask.distributed.Client("tcp://127.0.0.1:8080")
+   tr = DaskTaskRunner(address=client.scheduler.address)
+   ## Cf.
+   #cluster = dask.distributed.LocalCluster()
+   #client = cluster.get_client()
+except:
+   print("No Dask helm deployment detected at expected address")
+   #tr = ConcurrentTaskRunner()
+   tr = DaskTaskRunner(
+      cluster_class=dask.distributed.LocalCluster, cluster_kwargs={"processes": False}
+      )
 
 # Target Data Import and Prep
 @task(log_prints=True, retries=4, tags=["io"])
@@ -32,13 +44,18 @@ def fake_archive_query(dataset_name: str = "", failures: bool = False) -> dict:
         raise Exception(f"Import data: {dataset_name} from archive failed")
 
     print(f"Pretending to fetch data for {dataset_name} from an archive")
-    sleep_placeholder(da.random.randint(low=1, high=10, size=1))
+    sleep_placeholder(3)
     print(
         "Now that that latency simulation is complete, generating some mock data to return"
     )
-    rng = da.random.default_rng()
-    target_vals = rng.standard_normal(size=(1200, 1200, 30, 4))
-    calibrator_vals = rng.standard_normal(size=(100, 100, 10, 4))
+    datashape = {
+        "target": {"n_field": 1, "n_spw": 3, "n_scan": 27},
+        "calibrator": {"n_field": 1, "n_spw": 3, "n_scan": 5},
+    }
+    context = add_to_context(datashape, key="datashape", stage="data_import_and_prep")
+
+    target_vals = fake_data_generator(datashape["target"], "vis")
+    calibrator_vals = fake_data_generator(datashape["calibrator"], "vis")
 
     if dataset_name == "":
         dataset_name = "source_0"
@@ -48,12 +65,13 @@ def fake_archive_query(dataset_name: str = "", failures: bool = False) -> dict:
             dataset_name: calibrator_vals,
             "source_1": target_vals,
         },
-        "data_source": "archive",
+        "data_source": "core",
         "url": "https://almascience.nrao.edu/aq/",
     }
 
-    context = add_to_context(fake_result["data"], key="data", stage="data_import_and_prep")
-    print(f"Updated context after fake_archive_query: {context}")
+    context = add_to_context(
+        fake_result["data"], key="data", stage="data_import_and_prep"
+    )
 
     return fake_result
 
@@ -79,7 +97,6 @@ def fake_flagging(fake_result, source_name: str) -> dict:
         transformed_data["data"].pop(f"{key_to_drop}")
 
     context = add_to_context(transformed_data, "data", "data_import_and_prep")
-    print(f"Updated context after fake_flagging: {context}")
 
     return transformed_data
 
@@ -102,8 +119,9 @@ def alma_antpos_query(tags=["io"]) -> dict:
         )
         antpos_result_json = {}
 
-    context = add_to_context({"response":antpos_result_json}, "data", "data_import_and_prep")
-    print(f"Updated context after alma_antpos_query: {context}")
+    context = add_to_context(
+        {"response": antpos_result_json}, "data", "data_import_and_prep"
+    )
 
     return antpos_result_json
 
@@ -116,8 +134,7 @@ def generate_caltable(antpos_result_json):
     sleep_placeholder(4)
     caltable = {"gains": da.random.random_sample(size=(4))}
 
-    context = add_to_context({"caltables":caltable}, "data", "data_import_and_prep")
-    print(f"Updated context after apply_gaintable: {context}")
+    context = add_to_context({"caltables": caltable}, "data", "data_import_and_prep")
 
     return caltable
 
@@ -131,7 +148,6 @@ def apply_caltable(uncalibrated_data, caltable, target):
     )
 
     context = add_to_context(calibrated_data, "data", "data_import_and_prep")
-    print(f"Updated context after apply_gaintable: {context}")
 
     return calibrated_data
 
@@ -149,7 +165,7 @@ def generate_and_apply_gain_table(
     return calibrated_data
 
 
-@flow(log_prints=True)
+@flow(log_prints=True, task_runner=tr)
 def extract_transform_load(source_name) -> dict:
     logger = get_run_logger()
 

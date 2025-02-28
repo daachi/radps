@@ -15,7 +15,7 @@ from stage_image_cont_selfcal import image_cont_selfcal
 from stage_image_perspw_cont import image_perspw_cont
 from stage_image_cont_selfcal import generate_vis_datashape
 
-# Implemetation of the example pipeline from Figure 1
+# Implementation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
 
 
