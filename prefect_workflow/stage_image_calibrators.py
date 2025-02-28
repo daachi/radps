@@ -1,7 +1,7 @@
 from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
-
+from stage_image_cont_selfcal import solve
 from core import (sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
                   qa_failure_condition, fake_data, add_to_context, load_context)
 
@@ -15,7 +15,11 @@ def apply_cal(calibrator):
 @task(tags=["imaging"])
 def image_continuum(calibrator):
     sleep_placeholder()
-    return fake_data((5, 5))
+    data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
+           'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
+           'target':{'n_field':1, 'n_spw':3, 'n_scan':5 }}
+    return solve(data, 'bcal', combine='scan', soltype='imaging')
+
 
 
 @task(tags=["io"])
@@ -28,7 +32,7 @@ def export_spw_to_archive(spw_image):
 def export_continuum_images_to_archive(calibrator, failures=False):
     sleep_placeholder()
     export_results = []
-    for i in calibrator[0]:
+    for i in calibrator:
         export_results.append(export_spw_to_archive.submit(i))
     if randomly_fail(on=failures):
         raise Exception("Export of calibrator images to the Archive failed.")
