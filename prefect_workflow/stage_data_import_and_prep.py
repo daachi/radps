@@ -18,21 +18,9 @@ from core import (
     randomly_fail,
     fake_data_generator,
 )
+from resource_management import connect_to_scheduler
 
-
-try:
-   print("Attempting to connect pipeline to existing resource manager")
-   client = dask.distributed.Client("tcp://127.0.0.1:8080")
-   tr = DaskTaskRunner(address=client.scheduler.address)
-   ## Cf.
-   #cluster = dask.distributed.LocalCluster()
-   #client = cluster.get_client()
-except:
-   print("No Dask helm deployment detected at expected address")
-   #tr = ConcurrentTaskRunner()
-   tr = DaskTaskRunner(
-      cluster_class=dask.distributed.LocalCluster, cluster_kwargs={"processes": False}
-      )
+tr = connect_to_scheduler()
 
 # Target Data Import and Prep
 @task(log_prints=True, retries=4, tags=["io"])
