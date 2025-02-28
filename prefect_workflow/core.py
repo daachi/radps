@@ -116,7 +116,7 @@ def fake_data_generator(datashape, type):
     elif type == 'image':
 
         rng = da.random.default_rng()
-        data = rng.standard_normal(size=(imsize, imsize,nchan, npol)) 
+        data = rng.standard_normal(size=(imsize, imsize,nchan, npol))
 
     elif type == 'bcal':
 
@@ -154,14 +154,6 @@ def add_to_context(inp: dict, key="data", stage="unknown_stage") -> dict:
     context_object.save()
     sleep_placeholder(1.0)
     return context_object.to_dict()
-
-
-def fake_data(dimensions: tuple) -> dict:
-    """
-    Create fake data
-    """
-    data = np.random.rand(*dimensions)
-    return data
 
 
 def fake_qa_score(name: str = None, **kwargs) -> dict:

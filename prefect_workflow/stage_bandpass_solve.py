@@ -1,7 +1,7 @@
 from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
-from core import (fake_data, sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
+from core import (generate_random_complex_array, sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
                   qa_failure_condition, load_context, add_to_context)
 from stage_image_cont_selfcal import find_data_context, solve
 
@@ -18,7 +18,7 @@ def query_calmod(bandpass_calibrator, failures=False):
     if randomly_fail(on=failures):
         raise Exception("Query calmod failed")
     else:
-        return fake_data((100, 100))
+        return generate_random_complex_array((100, 100))
 
 
 @task(tags=["heuristics"])

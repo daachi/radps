@@ -3,7 +3,7 @@ from prefect.logging import get_run_logger
 from prefect.events import emit_event
 from stage_image_cont_selfcal import solve
 from core import (sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
-                  qa_failure_condition, fake_data, add_to_context, load_context)
+                  qa_failure_condition, generate_random_complex_array, add_to_context, load_context)
 
 # Image Calibrators
 @task(tags=["calibration"])

@@ -8,7 +8,7 @@ from prefect.deployments import run_deployment
 from stage_data_import_and_prep import (fake_archive_query, alma_antpos_query, fake_flagging,
                                         generate_and_apply_gain_table)
 
-from core import (fake_data, create_qa_artifact, create_context, fake_qa_score,
+from core import (generate_random_complex_array, create_qa_artifact, create_context, fake_qa_score,
                   qa_failure_condition, add_to_context)
 
 
@@ -38,7 +38,7 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False
     subflows = [wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows]
     results = await asyncio.gather(*subflows)
     for result in results:
-        data.append(fake_data((100, 100)))
+        data.append(generate_random_complex_array((100, 100)))
 
     return data
 
