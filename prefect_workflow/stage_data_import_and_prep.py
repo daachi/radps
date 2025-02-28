@@ -1,6 +1,7 @@
 import requests
 import dask.array as da
-import scipy
+from dask.distributed import Client
+import dask.config 
 from matplotlib.image import imsave
 import pathlib
 
@@ -17,6 +18,9 @@ from core import (
     randomly_fail,
 )
 
+#client = Client("tcp://10.43.89.250:8786")
+client = Client("tcp://127.0.0.1:8786")
+dask.config.set(scheduler='distributed')
 
 # Target Data Import and Prep
 @task(log_prints=True, retries=4, tags=["io"])
@@ -25,9 +29,9 @@ def fake_archive_query(dataset_name: str = "", failures: bool = False) -> dict:
     Simulate importing data from the archive.
     """
     if randomly_fail(on=failures):
-        raise Exception("Import data: {dataset_name} from archive failed")
+        raise Exception(f"Import data: {dataset_name} from archive failed")
 
-    print("Pretending to fetch data for {dataset_name} from an archive")
+    print(f"Pretending to fetch data for {dataset_name} from an archive")
     sleep_placeholder(da.random.randint(low=1, high=10, size=1))
     print(
         "Now that that latency simulation is complete, generating some mock data to return"
@@ -98,7 +102,7 @@ def alma_antpos_query(tags=["io"]) -> dict:
         )
         antpos_result_json = {}
 
-    context = add_to_context(antpos_result_json, "response", "data_import_and_prep")
+    context = add_to_context({"response":antpos_result_json}, "data", "data_import_and_prep")
     print(f"Updated context after alma_antpos_query: {context}")
 
     return antpos_result_json
@@ -112,7 +116,7 @@ def generate_caltable(antpos_result_json):
     sleep_placeholder(4)
     caltable = {"gains": da.random.random_sample(size=(4))}
 
-    context = add_to_context(caltable, "caltables", "data_import_and_prep")
+    context = add_to_context({"caltables":caltable}, "data", "data_import_and_prep")
     print(f"Updated context after apply_gaintable: {context}")
 
     return caltable
@@ -141,9 +145,6 @@ def generate_and_apply_gain_table(
     )
     caltable = generate_caltable(antpos_result_json)
     calibrated_data = apply_caltable(uncalibrated_data, caltable, target)
-
-    context = add_to_context(caltable, "caltable", "data_import_and_prep")
-    print(f"Updated context after generate_and_apply_gaintable: {context}")
 
     return calibrated_data
 
@@ -180,7 +181,7 @@ def extract_transform_load(source_name) -> dict:
     try:
         qa_score = fake_qa_score("data_import_and_prep", result=calibrated_data)
         create_qa_artifact(qa_score)
-        etl_context = add_to_context(qa_score, "qa_scores", "data_import_and_prep")
+        etl_context = add_to_context(qa_score, "qa", "data_import_and_prep")
         print(f"Final context: {etl_context}")
         return calibrated_data
     except NameError:
@@ -189,7 +190,7 @@ def extract_transform_load(source_name) -> dict:
         )
         qa_score = fake_qa_score("data_import_and_prep", result=transformed_data)
         create_qa_artifact(qa_score)
-        etl_context = add_to_context(qa_score, "qa_scores", "data_import_and_prep")
+        etl_context = add_to_context(qa_score, "qa", "data_import_and_prep")
         print(f"Final context: {etl_context}")
         return transformed_data
 

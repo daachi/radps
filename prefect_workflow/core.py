@@ -2,6 +2,7 @@ import time
 import random
 import pickle
 import numpy as np
+import dask.array as da
 
 from copy import deepcopy
 from datetime import datetime
@@ -62,6 +63,69 @@ def load_context() -> dict:
     context_dict = context_object.to_dict()
     return context_dict
 
+def generate_random_complex_array(shape):
+    """
+    Generate a random complex dask array of the given shape.
+    """
+    rng = da.random.default_rng()
+    re_array = rng.standard_normal(size = shape)
+    im_array = rng.standard_normal(size = shape)
+
+    return re_array + 1j * im_array
+
+
+def fake_data_generator(datashape, type):
+    """
+    Generate fake data based on the desired datashape
+    e.g. 
+    datashape = {'n_field':1, 'n_spw':3, 'n_scan':5, 
+    'n_chan':10, 'n_ant':10, 'imsize':256, 'n_time':1
+
+    Omitted keys will be set to default values (mostly 1) except
+    for imsize which set to 512. 
+    """
+    nfield = nspw = nscan = nchan = nant = npol = ntime = 1
+    imsize = 512
+
+    if 'n_field' in datashape:
+        nfield = datashape['n_field']
+    if 'n_spw' in datashape:
+        nspw = datashape['n_spw']
+    if 'n_scan' in datashape:
+        nscan = datashape['n_scan']
+    if 'n_chan' in datashape:
+        nchan = datashape['n_chan']
+    if 'n_ant' in datashape:
+        nant = datashape['n_ant']
+    if 'n_pol' in datashape:
+        npol = datashape['n_pol']
+    if 'imsize' in datashape:
+        imsize = datashape['imsize']
+    # time averaging for vis, caltables < n_scan
+    if 'n_time' in datashape:
+        ntime = datashape['n_time']
+    else:
+        ntime = nscan
+
+    nbaseline = nant * (nant - 1) / 2
+
+    if type == 'vis':
+        
+        data = generate_random_complex_array((nbaseline, ntime, nfield, nspw, nchan))
+
+    elif type == 'image':
+
+        rng = da.random.default_rng()
+        data = rng.standard_normal(size=(imsize, imsize,nchan, npol)) 
+
+    elif type == 'bcal':
+
+        data = generate_random_complex_array((nfield, nant, nspw, nchan))
+
+    elif type == 'gcal':
+        data = generate_random_complex_array((ntime, nfield, nant, nspw))
+
+    return data
 
 @task(log_prints=True)
 def add_to_context(inp: dict, key="data", stage="unknown_stage") -> dict:
