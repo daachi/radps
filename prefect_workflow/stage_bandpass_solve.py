@@ -60,7 +60,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     print(context)
 
     try:
-        bpcal = find_data_context(context, stage="stage_calibrator_data_import_and_prep", context_key='datashape')
+        bpcal = find_data_context(context, stage="stage_data_import_and_prep", context_key='data')
     except:
         data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
                 'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
@@ -85,6 +85,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model, bpcal_name)
     qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal_name)
 
+    add_to_context(bandpass_solution, key="caltable", stage="bandpass")
     logger.info("Updating context and creating QA artifact")
     new_context = add_to_context(qa_score, key="qa", stage="bandpass")
 
