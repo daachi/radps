@@ -14,12 +14,13 @@ from stage_image_cube import image_target_cube
 from stage_image_cont_selfcal import image_cont_selfcal
 from stage_image_perspw_cont import image_perspw_cont
 from stage_image_cont_selfcal import generate_vis_datashape
+from resource_management import connect_to_scheduler
 
 # Implementation of the example pipeline from Figure 1
 # of "An Example RADPS Workflow Decomposition"
 
-
-@flow(log_prints=True)
+tr = connect_to_scheduler()
+@flow(log_prints=True, task_runner=tr)
 def pipeline(imaging='cube', interactive=False):
     """
     Example pipeline implementation in Prefect from Figure 1 of "An Example RADPS Workflow Decomposition"

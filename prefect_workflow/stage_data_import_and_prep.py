@@ -18,9 +18,6 @@ from core import (
     randomly_fail,
     fake_data_generator,
 )
-from resource_management import connect_to_scheduler
-
-tr = connect_to_scheduler()
 
 
 # Target Data Import and Prep
@@ -166,7 +163,7 @@ def generate_and_apply_gain_table(
     return calibrated_data
 
 
-@flow(log_prints=True, task_runner=tr)
+@flow(log_prints=True)
 def extract_transform_load(source_name) -> dict:
     logger = get_run_logger()
 

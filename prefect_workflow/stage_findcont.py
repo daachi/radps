@@ -14,11 +14,8 @@ from core import (
     add_to_context,
     fake_data_generator,
 )
-from resource_management import connect_to_scheduler
 from stage_data_import_and_prep import extract_transform_load, apply_caltable
 from stage_image_cube import image_target_cube
-
-tr = connect_to_scheduler()
 
 
 # Calibrate Target and Find Continuum
@@ -27,9 +24,11 @@ def calculate_mean_spectrum(dirty_cube) -> dict:
     print(
         "Pretending to calculate a mean spectrum for determining line-free channels in a dirty image cube"
     )
-    print(dirty_cube)
     sleep_placeholder(2)
-    mean_spectrum = dirty_cube.mean(axis=2).compute()
+    try:
+        mean_spectrum = dirty_cube.mean(axis=2).compute()
+    except ValueError:
+        mean_spectrum = dirty_cube.mean(axis=2).compute(scheduler="threads")
 
     return mean_spectrum
 
@@ -83,7 +82,11 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     create_qa_artifact(complicated_score, artifact_type="table")
     # write a slice of a fake image to disk
     image_data = fake_data_generator(datashape["calibrator"], "image")
-    imsave("image.png", image_data)
+    try:
+        image = image_data.compute(scheduler="threads")
+    except ValueError:
+        image = image_data.compute(scheduler="threads")
+    imsave("image.png", image)
 
     complicated_score["url"] = pathlib.Path("image.png").resolve().as_uri()
     create_qa_artifact(complicated_score, artifact_type="image")
