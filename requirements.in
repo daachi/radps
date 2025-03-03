@@ -1,5 +1,7 @@
 prefect
+prefect_dask
 numpy
 dask
 scipy
 matplotlib
+bokeh
