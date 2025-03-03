@@ -22,6 +22,7 @@ from resource_management import connect_to_scheduler
 
 tr = connect_to_scheduler()
 
+
 # Target Data Import and Prep
 @task(log_prints=True, retries=4, tags=["io"])
 def fake_archive_query(dataset_name: str = "", failures: bool = False) -> dict:
@@ -96,6 +97,7 @@ def alma_antpos_query(tags=["io"]) -> dict:
     """
     logger = get_run_logger()
     logger.info("Requesting some data from an external antenna position service")
+
     response = requests.get(
         "http://asa.alma.cl/axis2/services/TMCDBAntennaPadService?wsdl"
     )
@@ -111,6 +113,14 @@ def alma_antpos_query(tags=["io"]) -> dict:
         {"response": antpos_result_json}, "data", "data_import_and_prep"
     )
 
+    print("Creating a synthentic gcal result to add to the context")
+    datashape = {
+        "calibrator": {"n_field": 1, "n_spw": 3, "n_scan": 5},
+    }
+    context = add_to_context(datashape, "datashape", "data_import_and_prep")
+    gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
+    context = add_to_context({"gcal": gcal_data}, "data", "data_import_and_prep")
+
     return antpos_result_json
 
 
@@ -120,11 +130,14 @@ def generate_caltable(antpos_result_json):
         "Pretending to generate a caltable using the results of an antenna position service query"
     )
     sleep_placeholder(4)
-    caltable = {"gains": da.random.random_sample(size=(4))}
 
-    context = add_to_context({"caltables": caltable}, "data", "data_import_and_prep")
+    datashape = {
+        "calibrator": {"n_field": 1, "n_spw": 3, "n_scan": 5},
+    }
+    gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
+    context = add_to_context({"gcal": gcal_data}, "data", "data_import_and_prep")
 
-    return caltable
+    return gcal_data
 
 
 @task
@@ -132,7 +145,7 @@ def apply_caltable(uncalibrated_data, caltable, target):
     print("Pretending to apply a transformation on some data using a calibration table")
     calibrated_data = uncalibrated_data
     calibrated_data["data"][target] = (
-        caltable["gains"] * uncalibrated_data["data"][target]
+        da.take(caltable, indices=-1, axis=1) * uncalibrated_data["data"][target]
     )
 
     context = add_to_context(calibrated_data, "data", "data_import_and_prep")

@@ -12,35 +12,24 @@ from core import (
     fake_qa_score,
     load_context,
     add_to_context,
+    fake_data_generator,
 )
+from resource_management import connect_to_scheduler
 from stage_data_import_and_prep import extract_transform_load, apply_caltable
+from stage_image_cube import image_target_cube
+
+tr = connect_to_scheduler()
 
 
 # Calibrate Target and Find Continuum
-@flow
-def make_dirty_cube(fake_visibilities) -> dict:
-    print("Pretending to construct a dirty image cube from some target data")
-    fake_image = fake_visibilities
-
-    print("Simulating an 'iterative solver' by looping on some axis ")
-    for nn in range(0, fake_visibilities["data"]["source_1"].shape[3]):
-        fake_image["data"]["source_1"] = da.fft.fft2(
-            da.rechunk(fake_visibilities["data"]["source_1"], chunks=-1)
-        )
-        fake_image["data"]["source_1"].compute()
-
-    dirty_cube = fake_image
-
-    return dirty_cube
-
-
 @task
 def calculate_mean_spectrum(dirty_cube) -> dict:
     print(
         "Pretending to calculate a mean spectrum for determining line-free channels in a dirty image cube"
     )
+    print(dirty_cube)
     sleep_placeholder(2)
-    mean_spectrum = dirty_cube["data"]["source_1"].mean(axis=2).compute()
+    mean_spectrum = dirty_cube.mean(axis=2).compute()
 
     return mean_spectrum
 
@@ -69,33 +58,41 @@ def find_continuum(dirty_cube) -> dict:
 
 @flow(log_prints=True)
 def calibrate_target_and_find_continuum(input_data) -> dict:
-    findcont_context = load_context()
-    print(f"Initial context: {findcont_context}")
     print(
         "Starting a pipeline stage that applies calibration to target and finds line-free continuum"
     )
-    dummy_caltable = {"gains": da.random.random_sample(size=(4))}
-    calibrated_data = apply_caltable(input_data, dummy_caltable, "source_1")
+    findcont_context = load_context()
+    print(f"Initial context: {findcont_context}")
 
-    dirty_cube = make_dirty_cube(calibrated_data)
+    print("Generating a calibration table and 'applying' it to the input_data")
+    datashape = findcont_context["data_import_and_prep"]["datashape"]
+    findcont_context = add_to_context(datashape, key="datashape", stage="findcont")
+    gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
+    findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
+
+    calibrated_data = apply_caltable(input_data, gcal_data, "source_1")
+
+    print("Calling stage_image_cube.image_target_cube")
+    dirty_cube = image_target_cube({"data": da.real(calibrated_data)})
     findcont_context = add_to_context({"cube": dirty_cube}, "data", stage="findcont")
-    print(f"Updated context: {findcont_context}")
 
     # do some QA stuff
     complicated_score = {}
     for nn in range(0, 9):
         complicated_score[f"parameter_{nn}"] = fake_qa_score()
     create_qa_artifact(complicated_score, artifact_type="table")
-    # write a slice of our fake image to disk
-    imsave("image.png", calibrated_data["data"]["source_1"][:, :, 0, 0].compute())
+    # write a slice of a fake image to disk
+    image_data = fake_data_generator(datashape["calibrator"], "image")
+    imsave("image.png", image_data)
 
     complicated_score["url"] = pathlib.Path("image.png").resolve().as_uri()
     create_qa_artifact(complicated_score, artifact_type="image")
 
-    findcont_context = add_to_context(dirty_cube, "data", stage="findcont")
-    print(f"Updated context again: {findcont_context}")
+    findcont_context = add_to_context(
+        {"calibrator": image_data}, "data", stage="findcont"
+    )
 
-    continuum_data = find_continuum(dirty_cube)
+    continuum_data = find_continuum(image_data)
     # TODO: update find_continuum to output the dummy data expected by subsequent stages
     # until then, we'll just add it here
     data = {
