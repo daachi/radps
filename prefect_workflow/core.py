@@ -11,8 +11,8 @@ from prefect import flow, task
 from prefect.artifacts import (
     create_markdown_artifact,
     create_table_artifact,
-    create_image_artifact
-    )
+    create_image_artifact,
+)
 
 
 class Context:
@@ -22,8 +22,8 @@ class Context:
         self.data = {}
         self.save()
 
-    def save(self, filename='context.pkl'):
-        with open(filename, 'wb') as f:
+    def save(self, filename="context.pkl"):
+        with open(filename, "wb") as f:
             pickle.dump(self, f)
 
     def to_dict(self) -> dict:
@@ -36,7 +36,7 @@ class Context:
     def load(cls, filename=path):
         """Loads a context from a file."""
         try:
-            with open(filename, 'rb') as f:
+            with open(filename, "rb") as f:
                 return pickle.load(f)
         except FileNotFoundError:
             print("Context file not found. Creating new context.")
@@ -63,13 +63,14 @@ def load_context() -> dict:
     context_dict = context_object.to_dict()
     return context_dict
 
+
 def generate_random_complex_array(shape):
     """
     Generate a random complex dask array of the given shape.
     """
     rng = da.random.default_rng()
-    re_array = rng.standard_normal(size = shape)
-    im_array = rng.standard_normal(size = shape)
+    re_array = rng.standard_normal(size=shape)
+    im_array = rng.standard_normal(size=shape)
 
     return re_array + 1j * im_array
 
@@ -77,55 +78,58 @@ def generate_random_complex_array(shape):
 def fake_data_generator(datashape, type):
     """
     Generate fake data based on the desired datashape
-    e.g. 
-    datashape = {'n_field':1, 'n_spw':3, 'n_scan':5, 
+    e.g.
+    datashape = {'n_field':1, 'n_spw':3, 'n_scan':5,
     'n_chan':10, 'n_ant':10, 'imsize':256, 'n_time':1
 
     Omitted keys will be set to default values (mostly 1) except
-    for imsize which set to 512. 
+    for imsize which is set to 512, and nant, which is set to 2 for type="vis".
     """
     nfield = nspw = nscan = nchan = nant = npol = ntime = 1
     imsize = 512
 
-    if 'n_field' in datashape:
-        nfield = datashape['n_field']
-    if 'n_spw' in datashape:
-        nspw = datashape['n_spw']
-    if 'n_scan' in datashape:
-        nscan = datashape['n_scan']
-    if 'n_chan' in datashape:
-        nchan = datashape['n_chan']
-    if 'n_ant' in datashape:
-        nant = datashape['n_ant']
-    if 'n_pol' in datashape:
-        npol = datashape['n_pol']
-    if 'imsize' in datashape:
-        imsize = datashape['imsize']
+    if "n_field" in datashape:
+        nfield = datashape["n_field"]
+    if "n_spw" in datashape:
+        nspw = datashape["n_spw"]
+    if "n_scan" in datashape:
+        nscan = datashape["n_scan"]
+    if "n_chan" in datashape:
+        nchan = datashape["n_chan"]
+    if "n_ant" in datashape:
+        nant = datashape["n_ant"]
+    if "n_pol" in datashape:
+        npol = datashape["n_pol"]
+    if "imsize" in datashape:
+        imsize = datashape["imsize"]
     # time averaging for vis, caltables < n_scan
-    if 'n_time' in datashape:
-        ntime = datashape['n_time']
+    if "n_time" in datashape:
+        ntime = datashape["n_time"]
     else:
         ntime = nscan
 
-    nbaseline = nant * (nant - 1) / 2
+    if type == "vis":
 
-    if type == 'vis':
-        
+        # avoid setting nbaseline to 0 causing IndexError: Index 0 is out of bounds for axis 0 with size 0
+        nant += 1
+        nbaseline = nant * (nant - 1) / 2
+
         data = generate_random_complex_array((nbaseline, ntime, nfield, nspw, nchan))
 
-    elif type == 'image':
+    elif type == "image":
 
         rng = da.random.default_rng()
-        data = rng.standard_normal(size=(imsize, imsize,nchan, npol))
+        data = rng.standard_normal(size=(imsize, imsize, nchan, npol))
 
-    elif type == 'bcal':
+    elif type == "bcal":
 
         data = generate_random_complex_array((nfield, nant, nspw, nchan))
 
-    elif type == 'gcal':
+    elif type == "gcal":
         data = generate_random_complex_array((ntime, nfield, nant, nspw))
 
     return data
+
 
 @task(log_prints=True)
 def add_to_context(inp: dict, key="data", stage="unknown_stage") -> dict:
@@ -164,7 +168,7 @@ def fake_qa_score(name: str = None, **kwargs) -> dict:
     if name:
         return {name: score}
     else:
-        return {'qa_score': score}
+        return {"qa_score": score}
 
 
 def create_qa_artifact(qa_scores: dict, artifact_type=None):
@@ -188,10 +192,7 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
     elif artifact_type == "image":
         image = qa_scores["url"]
 
-        create_image_artifact(
-            image_url=image,
-            description="qa-report"
-            )
+        create_image_artifact(image_url=image, description="qa-report")
 
     else:
         # just fall back to the original behavior
@@ -206,7 +207,9 @@ def create_qa_artifact(qa_scores: dict, artifact_type=None):
         )
 
 
-def qa_failure_condition(qa_score: float, threshold: float = 0.67, failures_on=False) -> bool:
+def qa_failure_condition(
+    qa_score: float, threshold: float = 0.67, failures_on=False
+) -> bool:
     """
     Check if the QA score is below the threshold.
     """
