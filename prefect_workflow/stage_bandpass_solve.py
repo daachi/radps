@@ -87,7 +87,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model, bpcal_name)
     qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal_name)
 
-    add_to_context({"caltable": bandpass_solution}, key="data", stage="bandpass")
+    add_to_context(bandpass_solution, key="data", stage="bandpass")
     logger.info("Updating context and creating QA artifact")
     new_context = add_to_context(qa_score, key="qa", stage="bandpass")
 
