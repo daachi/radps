@@ -5,7 +5,6 @@ from core import (generate_random_complex_array, sleep_placeholder, randomly_fai
                   qa_failure_condition, load_context, add_to_context, fake_data_generator)
 from stage_image_cont_selfcal import find_data_context, solve
 
-
 # Bandpass Solution
 @task(tags=["flagging"])
 def autoflag_bandpass(bp_data):
@@ -57,14 +56,14 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     """
     logger = get_run_logger()
     logger.info(f"Starting bandpass solve for {bpcal_name}")
-
+    
     context = load_context()
     print("Initial context prior to bandpass solve:")
     print(context)
 
     try:
         bpcal = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
-        print(f"Using bandpass calibrator from context {bpcal}")
+        print(f"Using bandpass calibrator from context {bpcal[bpcal_name]}")
     except OSError as e:
         print("Bandpass calibrator not found in context. Error: {}".format(repr(e)))
         print("Using backup default value.")

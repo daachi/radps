@@ -63,12 +63,12 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     findcont_context = load_context()
     print(f"Initial context: {findcont_context}")
 
+    datashape = findcont_context["data_import_and_prep"]["datashape"]
     try:
         print("Loading a calibration table from the context and 'applying' it to the input_data")
         gcal_data = findcont_context["gaincal"]["data"]["caltable"]
     except:
         print("Generating a calibration table and 'applying' it to the input_data")
-        datashape = findcont_context["data_import_and_prep"]["datashape"]
         findcont_context = add_to_context(datashape, key="datashape", stage="findcont")
         gcal_data = fake_data_generator(datashape["source_0"], "gcal")
         findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
