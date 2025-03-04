@@ -47,17 +47,14 @@ def image_calibrator(calibrator, failures=False):
 
     try:
         calibrator_data = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
-        print(f"Using calibrator from context {calibrator}")
-    except OSError as e:
+        print(f"Using calibrator from context {calibrator_data[calibrator]}")
+    except (KeyError, OSError) as e:
         print("{} not found in context. Error: {}".format(calibrator, repr(e)))
         print("Using backup default value.")
 
-        data = {calibrator:{'n_field':1, 'n_spw':3, 'n_scan':1},
+        calibrator_data = {calibrator:{'n_field':1, 'n_spw':3, 'n_scan':1},
                 'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
                 'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
-        calibrator_data = {}
-        calibrator_data['datashape'] = {}
-        calibrator_data['datashape'][calibrator] = dict(data[calibrator])
 
     calibrated_vis = apply_cal(calibrator_data)
 
