@@ -9,7 +9,7 @@ from stage_data_import_and_prep import (fake_archive_query, alma_antpos_query, f
                                         generate_and_apply_gain_table)
 
 from core import (generate_random_complex_array, create_qa_artifact, create_context, fake_qa_score,
-                  qa_failure_condition, add_to_context)
+                  qa_failure_condition, add_to_context, load_context)
 
 
 @flow(log_prints=True)
@@ -32,9 +32,6 @@ async def run_calibrator_import_and_prep_in_parallel(calibrators, failures=False
         )
 
     data = []
-#    for flow_run in sub_flows:
-#        await wait_for_flow_run(flow_run.id, poll_interval=5)
-#        results.append(fake_data((100, 100)))
     subflows = [wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows]
     results = await asyncio.gather(*subflows)
     for result in results:
@@ -55,7 +52,7 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     context = create_context()
 
     logger.info(f"Importing data from archive for {calibrator}")
-    calibrator_data = fake_archive_query(calibrator, failures=failures)
+    calibrator_data = fake_archive_query(calibrator, failures=failures, extra_data=False, stage_name="calibrator_data_import_and_prep")
 
     logger.info(f"Applying online flags for {calibrator}")
     flagged_data = fake_flagging(calibrator_data, calibrator)
@@ -64,7 +61,7 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     antpos_result_json = alma_antpos_query(calibrator)
 
     logger.info(f"Generating and applying antenna position corrections for {calibrator}")
-    generate_and_apply_gain_table(flagged_data, antpos_result_json, calibrator)
+    generate_and_apply_gain_table(flagged_data, antpos_result_json, calibrator, stage_name="calibrator_data_import_and_prep")
 
     logger.info("Updating context and creating QA artifact")
     qa_name = f"calibrator_data_import_and_prep_{calibrator}"
@@ -76,7 +73,8 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
         emit_event(event="low_qa.imported.event!", resource={"prefect.resource.id": "test.id"})
         pause_flow_run()
 
-    print(current_context)
+    print("Context after calibrator data import and prep:")
+    print(load_context())
 
 
 if __name__ == "__main__":

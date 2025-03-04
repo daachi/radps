@@ -2,7 +2,7 @@ from prefect import flow, task, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.events import emit_event
 from core import (generate_random_complex_array, sleep_placeholder, randomly_fail, create_qa_artifact, fake_qa_score,
-                  qa_failure_condition, load_context, add_to_context)
+                  qa_failure_condition, load_context, add_to_context, fake_data_generator)
 from stage_image_cont_selfcal import find_data_context, solve
 
 
@@ -34,7 +34,10 @@ def save_model_vis(bp_data):
 
 @task(tags=["calibration"])
 def amp_phase_solve(bp_data, src):
-    return solve(bp_data['datashape'], src=src, combine='scan')
+    solve(bp_data, src=src, combine='scan')
+    # Currently, this does not return anything, so...
+    return fake_data_generator(bp_data, "bcal")
+
 
 
 @task(tags=["qa"])
@@ -56,12 +59,16 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     logger.info(f"Starting bandpass solve for {bpcal_name}")
 
     context = load_context()
-    print("staritng context as of bandpass  solve")
+    print("Initial context prior to bandpass solve:")
     print(context)
 
     try:
-        bpcal = find_data_context(context, stage="stage_data_import_and_prep", context_key='data')
-    except:
+        bpcal = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
+        print(f"Using bandpass calibrator from context {bpcal}")
+    except OSError as e:
+        print("Bandpass calibrator not found in context. Error: {}".format(repr(e)))
+        print("Using backup default value.")
+
         data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
                 'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
                 'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
@@ -85,7 +92,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     bandpass_solution = amp_phase_solve(flagged_bandpass_saved_model, bpcal_name)
     qa_name, qa_score = bandpass_qa_score(bandpass_solution, bpcal_name)
 
-    add_to_context(bandpass_solution, key="caltable", stage="bandpass")
+    add_to_context({"caltable": bandpass_solution}, key="data", stage="bandpass")
     logger.info("Updating context and creating QA artifact")
     new_context = add_to_context(qa_score, key="qa", stage="bandpass")
 

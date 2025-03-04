@@ -6,10 +6,11 @@ from prefect.events import emit_event
 
 from core import (sleep_placeholder, create_qa_artifact,
                   fake_qa_score, qa_failure_condition,
-                  load_context, add_to_context)
+                  load_context, add_to_context, fake_data_generator)
 from stage_image_cont_selfcal import find_data_context, solve
 
 from typing import List
+
 
 # Time Gain Solve
 @task(tags=["heuristics"])
@@ -19,24 +20,29 @@ def calc_snr(gaincal):
 
 @task(tags=["calibration"])
 def per_spw_gain_soln(gaincal, src):
-    return solve(gaincal['datashape'], src=src)
+    solve(gaincal, src=src, combine="scan")
+    # Currently, this does not return anything, so...
+    return fake_data_generator(gaincal, "gcal")
 
 
 @task(tags=["calibration"])
 def best_spw_gain_soln(gaincal, src):
-    return solve(gaincal['datashape'], src=src)
+    solve(gaincal, src=src, combine="scan")
+    # Currently, this does not return anything, so...
+    return fake_data_generator(gaincal, "gcal")
 
 
 @task(tags=["calibration"])
 def combinespw_gain_soln(gaincal, src):
-    return solve(gaincal['datashape'], src=src, combine="spw")
-
-
+    solve(gaincal, src=src, combine="spw")
+    # Currently, this does not return anything, so...
+    return fake_data_generator(gaincal, "gcal")
 
 @task(tags=["calibration"])
 def global_gain_soln(gaincal, src):
-    return solve(gaincal['datashape'], src=src, combine="spw")
-
+    solve(gaincal, src=src, combine="spw")
+    # Currently, this does not return anything, so...
+    return fake_data_generator(gaincal, "gcal")
 
 @task(tags=["qa"])
 def gaincal_qa_score(gaincal) -> dict:
@@ -69,10 +75,16 @@ def time_gain_solve(gaincal_name, gaincal, failures=False):
     logger.info(f"Starting time gain solve for {gaincal}")
 
     context = load_context()
+    print("Context prior to gaincal:")
+    print(context)
 
     try:
-        gaincal = find_data_context(context, stage="stage_calibrator_data_import_and_prep", context_key='datashape')
-    except:
+        gaincal = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
+        print(f"Using gain calibrator from context {gaincal_name}")
+    except OSError as e:
+        print("Gain Calibrator not found in context. Error: {}".format(repr(e)))
+        print("Using backup default value.")
+
         data = {gaincal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
                 'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
                 'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
@@ -80,7 +92,7 @@ def time_gain_solve(gaincal_name, gaincal, failures=False):
         gaincal['datashape'] = {}
         gaincal['datashape'][gaincal_name] = dict(data[gaincal_name])
 
-    spws = [0, 1, 2, 3]  # pretend these come from the load_context() call
+    spws = [random.randint(1, 100) for _ in range(gaincal[gaincal_name]['n_spw'])]
 
     logger.info(f"Calculating SNR for {gaincal_name}")
     snr = calc_snr(gaincal)
@@ -96,7 +108,7 @@ def time_gain_solve(gaincal_name, gaincal, failures=False):
     qa = gaincal_qa_score(result)
 
     create_qa_artifact(qa)
-    add_to_context(result, key="caltable", stage="gaincal")
+    add_to_context({"caltable" : result}, key="data", stage="gaincal")
     new_context = add_to_context(qa, key="qa", stage="gaincal")
     print("context updated after gaincal:")
     print(new_context)

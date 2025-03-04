@@ -22,7 +22,8 @@ from core import (
 
 # Target Data Import and Prep
 @task(log_prints=True, retries=4, tags=["io"])
-def fake_archive_query(dataset_name: str = "", failures: bool = False) -> dict:
+def fake_archive_query(dataset_name: str = "source_1", failures: bool = False,
+                       extra_data: bool = True, stage_name: str = "data_import_and_prep") -> dict:
     """
     Simulate importing data from the archive.
     """
@@ -34,29 +35,42 @@ def fake_archive_query(dataset_name: str = "", failures: bool = False) -> dict:
     print(
         "Now that that latency simulation is complete, generating some mock data to return"
     )
-    datashape = {
-        "target": {"n_field": 1, "n_spw": 3, "n_scan": 27},
-        "calibrator": {"n_field": 1, "n_spw": 3, "n_scan": 5},
-    }
-    context = add_to_context(datashape, key="datashape", stage="data_import_and_prep")
 
-    target_vals = fake_data_generator(datashape["target"], "vis")
-    calibrator_vals = fake_data_generator(datashape["calibrator"], "vis")
+    if extra_data:
+        datashape = {
+            "source_0": {"n_field": 1, "n_spw": 3, "n_scan": 5},
+            dataset_name : {"n_field": 1, "n_spw": 3, "n_scan": 27},
+        }
+    else:
+        datashape = {
+            dataset_name : {"n_field": 1, "n_spw": 3, "n_scan": 27}
+        }
 
-    if dataset_name == "":
-        dataset_name = "source_0"
+    context = add_to_context(datashape, key="datashape", stage=stage_name)
 
-    fake_result = {
-        "data": {
-            dataset_name: calibrator_vals,
-            "source_1": target_vals,
-        },
-        "data_source": "core",
-        "url": "https://almascience.nrao.edu/aq/",
-    }
+    vals = fake_data_generator(datashape[dataset_name], "vis")
 
+    if extra_data:
+        extra_vals = fake_data_generator(datashape["source_0"], "vis")
+
+        fake_result = {
+            "data": {
+                "source_0": extra_vals,
+                dataset_name: vals,
+            },
+            "data_source": "core",
+            "url": "https://almascience.nrao.edu/aq/",
+        }
+    else:
+        fake_result = {
+            "data": {
+                dataset_name: vals,
+            },
+            "data_source": "core",
+            "url": "https://almascience.nrao.edu/aq/",
+        }
     context = add_to_context(
-        fake_result["data"], key="data", stage="data_import_and_prep"
+        fake_result["data"], key="data", stage=stage_name
     )
 
     return fake_result
@@ -81,14 +95,13 @@ def fake_flagging(fake_result, source_name: str) -> dict:
 
     if key_to_drop:
         transformed_data["data"].pop(f"{key_to_drop}")
-
-    context = add_to_context(transformed_data, "data", "data_import_and_prep")
+        add_to_context(transformed_data, "data", "data_import_and_prep")
 
     return transformed_data
 
 
-@task(cache_policy=TASK_SOURCE)
-def alma_antpos_query(tags=["io"]) -> dict:
+@task(cache_policy=TASK_SOURCE, tags=["io"])
+def alma_antpos_query(stage_name: str = "data_import_and_prep") -> dict:
     """
     Simulate querying the alma archive.
     """
@@ -107,16 +120,16 @@ def alma_antpos_query(tags=["io"]) -> dict:
         antpos_result_json = {}
 
     context = add_to_context(
-        {"response": antpos_result_json}, "data", "data_import_and_prep"
+        {"response": antpos_result_json}, "data", stage_name
     )
 
     print("Creating a synthentic gcal result to add to the context")
     datashape = {
         "calibrator": {"n_field": 1, "n_spw": 3, "n_scan": 5},
     }
-    context = add_to_context(datashape, "datashape", "data_import_and_prep")
+    context = add_to_context(datashape, "datashape", stage_name)
     gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
-    context = add_to_context({"gcal": gcal_data}, "data", "data_import_and_prep")
+    context = add_to_context({"gcal": gcal_data}, "data", stage_name)
 
     return antpos_result_json
 
@@ -171,13 +184,13 @@ def extract_transform_load(source_name) -> dict:
     print(f"Initial context: {etl_context}")
 
     logger.info("Calling archive query task")
-    fake_data = fake_archive_query()
+    fake_data = fake_archive_query(source_name)
 
     logger.info("Calling flagging task")
     transformed_data = fake_flagging(fake_data, source_name)
 
     logger.info("Calling antpos query task")
-    antpos_query_result = alma_antpos_query()
+    antpos_query_result = alma_antpos_query(source_name)
 
     logger.info(
         "Checking to see if we can/should try to perform antenna position corrections"

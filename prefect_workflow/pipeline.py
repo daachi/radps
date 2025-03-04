@@ -4,6 +4,7 @@ from prefect import flow
 from prefect import exceptions
 from prefect.deployments import run_deployment
 
+from core import load_context
 from stage_calibrator_import_and_prep import calibrator_data_import_and_prep, run_calibrator_import_and_prep_in_parallel
 from stage_bandpass_solve import bandpass_solve
 from stage_time_gain_solve import time_gain_solve
@@ -90,6 +91,8 @@ def pipeline(imaging='cube', interactive=False):
         # Per-SPW Continuum Imaging
         per_spw_target_cont_image = image_perspw_cont(calibrated_target_data)
 
+    print("Final context:")
+    print(load_context())
 if __name__ == "__main__":
 
     import sys

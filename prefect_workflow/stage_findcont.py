@@ -63,11 +63,15 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     findcont_context = load_context()
     print(f"Initial context: {findcont_context}")
 
-    print("Generating a calibration table and 'applying' it to the input_data")
-    datashape = findcont_context["data_import_and_prep"]["datashape"]
-    findcont_context = add_to_context(datashape, key="datashape", stage="findcont")
-    gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
-    findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
+    try:
+        print("Loading a calibration table from the context and 'applying' it to the input_data")
+        gcal_data = findcont_context["gaincal"]["data"]["caltable"]
+    except:
+        print("Generating a calibration table and 'applying' it to the input_data")
+        datashape = findcont_context["data_import_and_prep"]["datashape"]
+        findcont_context = add_to_context(datashape, key="datashape", stage="findcont")
+        gcal_data = fake_data_generator(datashape["source_0"], "gcal")
+        findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
 
     calibrated_data = apply_caltable(input_data, gcal_data, "source_1")
 
@@ -81,7 +85,11 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
         complicated_score[f"parameter_{nn}"] = fake_qa_score()
     create_qa_artifact(complicated_score, artifact_type="table")
     # write a slice of a fake image to disk
-    image_data = fake_data_generator(datashape["calibrator"], "image")
+    try:
+        image_data = fake_data_generator(findcont_context["calibrator_data_import_and_prep"]["datashape"]["J1752-2956"], "image")
+    except:
+        image_data = fake_data_generator(datashape["source_0"], "image")
+
     try:
         image = image_data.compute(scheduler="threads")
     except ValueError:
