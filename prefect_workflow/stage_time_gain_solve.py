@@ -80,17 +80,12 @@ def time_gain_solve(gaincal_name, gaincal, failures=False):
 
     try:
         gaincal = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
-        print(f"Using gain calibrator from context {gaincal_name}")
+        print(f"Using gain calibrator from context for {gaincal_name}")
     except OSError as e:
         print("Gain Calibrator not found in context. Error: {}".format(repr(e)))
-        print("Using backup default value.")
+        print(f"Using backup default value for {gaincal_name}")
 
-        data = {gaincal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
-                'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
-                'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
-        gaincal = {}
-        gaincal['datashape'] = {}
-        gaincal['datashape'][gaincal_name] = dict(data[gaincal_name])
+        gaincal = {gaincal_name: {'n_field':1, 'n_spw':3, 'n_scan':1}}
 
     spws = [random.randint(1, 100) for _ in range(gaincal[gaincal_name]['n_spw'])]
 
@@ -127,4 +122,4 @@ if __name__ == "__main__":
     gaincal = {}
     gaincal['datashape'] = {}
     gaincal['datashape'][gaincal_name] = dict(data[gaincal_name])
-    time_gain_solve(gaincal, gaincal_name)
+    time_gain_solve(gaincal_name, gaincal)

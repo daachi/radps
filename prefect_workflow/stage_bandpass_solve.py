@@ -69,12 +69,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
         print("Bandpass calibrator not found in context. Error: {}".format(repr(e)))
         print("Using backup default value.")
 
-        data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
-                'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
-                'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
-        bpcal = {}
-        bpcal['datashape'] = {}
-        bpcal['datashape'][bpcal_name] = dict(data[bpcal_name])
+        bpcal = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1}}
 
     logger.info(f"Flagging bandpass data for {bpcal_name}")
     flagged_bandpass = autoflag_bandpass(bpcal)
@@ -110,9 +105,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
 if __name__ == "__main__":
     bpcal_name = "bpcal"
 
-    data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1},
-            'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
-            'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
+    data = {bpcal_name:{'n_field':1, 'n_spw':3, 'n_scan':1}}
     bpcal = {}
     bpcal['datashape'] = {}
     bpcal['datashape'][bpcal_name] = dict(data[bpcal_name])
