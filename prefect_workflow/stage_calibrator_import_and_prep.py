@@ -61,7 +61,7 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     antpos_result_json = alma_antpos_query(calibrator)
 
     logger.info(f"Generating and applying antenna position corrections for {calibrator}")
-    generate_and_apply_gain_table(flagged_data, antpos_result_json, calibrator, stage_name="calibrator_data_import_and_prep")
+    generate_and_apply_gain_table(flagged_data, antpos_result_json, calibrator)
 
     logger.info("Updating context and creating QA artifact")
     qa_name = f"calibrator_data_import_and_prep_{calibrator}"
