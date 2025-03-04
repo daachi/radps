@@ -38,7 +38,7 @@ def fake_archive_query(dataset_name: str = "source_1", failures: bool = False,
 
     if extra_data:
         datashape = {
-            "source_0": {"n_field": 1, "n_spw": 3, "n_scan": 5},
+            "source_0": {"n_field": 1, "n_spw": 3, "n_scan": 27},
             dataset_name : {"n_field": 1, "n_spw": 3, "n_scan": 27},
         }
     else:
@@ -155,7 +155,7 @@ def apply_caltable(uncalibrated_data, caltable, target):
     print("Pretending to apply a transformation on some data using a calibration table")
     calibrated_data = uncalibrated_data
     calibrated_data["data"][target] = (
-        da.take(caltable, indices=-1, axis=1) * uncalibrated_data["data"][target]
+        da.take(caltable, indices=-1, axis=0) * uncalibrated_data["data"][target]
     )
 
     context = add_to_context(calibrated_data, "data", "data_import_and_prep")
