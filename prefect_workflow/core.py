@@ -233,7 +233,16 @@ def randomly_fail(on=False) -> bool:
 
 def sleep_placeholder(duration: float = 3.0):
     """
-    Sleep for some seconds. Intended to represent
-    a task runtime. Defaults to 3 seconds.
+    Take up some time computing with random numbers using dask arrays.
+    Intended to represent a task runtime.
     """
-    time.sleep(duration)
+    something = da.random.random((2000, 2000), chunks=(500, 500))
+    broadcast = something * duration
+    result = da.cov(broadcast)
+    try:
+        # submit requests to the dask scheduler as found in default config
+        result.compute()
+    except ValueError:
+        # might happen if using ephemeral schedulers rather than connecting via k8s
+        result.compute(scheduler="threads")
+    return result
