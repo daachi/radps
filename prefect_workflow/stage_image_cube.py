@@ -10,8 +10,8 @@ from stage_image_cont_selfcal import (
     solve,  
     calc_heuristics, 
     archive_export, 
-    generate_fake_image,
     find_data_context,
+    generate_fake_image
 )
 from int_clean import int_clean
 
@@ -23,7 +23,9 @@ from core import (
     create_context,
     load_context,
     add_to_context,
+    fake_data_generator,
 )
+import random
 import os
 
 @task
@@ -114,6 +116,8 @@ def uv_continuum_subtraction(data: dict, src: str,
 
     # 
     uvcontsub_ret['uvcontsub_result']=uvcontsub_par
+    # spectral data which is assumed to be constructed from gathered uvcontsub result
+    uvcontsub_ret['data'] = fake_data_generator(data[src], 'vis') 
     uvcontsub_ret['datashape'] = {}
     uvcontsub_ret['datashape'][src] = dict(data[src])
     uvcontsub_qa_result = uvcontsub_qa_score(uvcontsub_ret) 
@@ -166,9 +170,10 @@ def image_target_cube(data: dict={},src: str='target',
         try:  
             # uvcontsub
             uvcontsub_res = uv_continuum_subtraction(has_spectraldata, src, failure_mode)
-            cur_context = add_to_context({'spectral_data':{'datashape':uvcontsub_res['datashape']}}, 
+            cur_context = add_to_context({src:{'spectral_data':uvcontsub_res['data']}}, 
                                          key='data', 
                                          stage='image_cube') 
+
             if interactive:
                 # use default maxiter  = 10
                 image_data = asyncio.run(int_clean(uvcontsub_res['datashape'], 
@@ -181,14 +186,14 @@ def image_target_cube(data: dict={},src: str='target',
                                    combine='scan', 
                                    soltype='cube_imaging')
             qa_result = cubeimage_qa_score(image_data)
+
             print("Archiving the resultant cube images... ") 
-            
             # parallelize across fields and spws
             archived_data = archive_export(image_data, src='target', paraxes='fieldandspw')
 
             # store data, image(info), qa to the context
             stored_context = add_to_context(inp=calibrated_data, key='datashape', stage='image_cube')
-            stored_context = add_to_context(inp={'image':{'cube':image_data['image']}}, key='data', stage='image_cube')
+            stored_context = add_to_context(inp={'image':{src:{'cube':image_data['image']}}}, key='data', stage='image_cube')
             stored_context = add_to_context(inp=qa_result, key='qa', stage='image_cube')
             
             # fake artifact generation
@@ -207,7 +212,7 @@ def image_target_cube(data: dict={},src: str='target',
 if __name__ == '__main__':
     data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
              'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
-             'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1} }
+             'target':{'n_field':1, 'n_spw':3, 'n_scan':5, 'n_chan':1, 'n_ant':3} }
     use_context = True
     if use_context:
         # fix the existing context 

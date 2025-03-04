@@ -8,13 +8,18 @@ from stage_image_cont_selfcal import (
     applymodel, 
     solve, 
     archive_export, 
-    generate_image_datashape,
     find_data_context,
 )
 from int_clean import int_clean
 
 # import re-used functions
-from core import fake_qa_score, create_qa_artifact, load_context, add_to_context
+from core import ( 
+    fake_qa_score, 
+    create_qa_artifact, 
+    load_context, 
+    add_to_context,
+    fake_data_generator,
+)
 
 @task
 def perspw_cont_imaging_qa_score(image_data):
@@ -32,6 +37,7 @@ def image_perspw_cont(data: dict={}, src: str='target', interactive: bool=False)
     """
     selfcal=False
     print("Starting per-SPW continuum imaging")
+    calibrated_data = dict()
     if data == dict():
         print('Loading existing context...')
         if not os.path.exists('context.pkl'): 
@@ -48,13 +54,16 @@ def image_perspw_cont(data: dict={}, src: str='target', interactive: bool=False)
     else:
         calibrated_data = dict(data)
 
+    print(f"Input calibrated_data: {calibrated_data}")
     res2 = dict(calibrated_data)
     # check if selcal is done
     # and if that is the case, apply best calibration solution to data
     if selfcal and 'caltables' in calibrated_data:
-        if 'selfcal_table' in calibrated_data['caltables']:
-            print("Selfcal solution found, applying to data")
-            caltable = calibrated_data[src]['selfcal_sol']
+        if 'final_selfcal' in calibrated_data['caltables']:
+            print("Selfcal solution found")
+            sol = calibrated_data['caltables']['final_selfcal']
+            print(f"Applying calibration solution {sol} to data")
+            caltable = calibrated_data[src]['data']['caltables'][sol]['shape']
             res2 = applymodel(caltable, calibrated_data, src)
     # do per spw imaging (solve per spw and field)
     if interactive:
@@ -64,11 +73,8 @@ def image_perspw_cont(data: dict={}, src: str='target', interactive: bool=False)
     qa_score = perspw_cont_imaging_qa_score(image_data)
     # export data
     archived_data = archive_export(image_data, src, paraxes='fieldandspw')
-    print('archived_data = ', archived_data)
-    print('image_data=', image_data)
     image_data_tostore = {'image': {src:image_data['image']}}
     datashape_tostore = {src: image_data[src]}
-    print('datashape to store ---', datashape_tostore)
                          
     #store context
     stored_context = add_to_context(inp=image_data_tostore, 
@@ -88,16 +94,20 @@ if __name__ == '__main__':
     data = {'bcal':{'n_field':1, 'n_spw':3, 'n_scan':1},
            'gcal':{'n_field':1, 'n_spw':3, 'n_scan':4},
            'target':{'n_field':1, 'n_spw':3, 'n_scan':5 }}
-    caltable ={'caltables':{'selfcal_table':'caltable_loc'} }
 
     use_context = True # to test retrieving input data from the existing context
     if use_context:
+        print('Loading existing context...')
         # fix the existing context 
         context = load_context()
-        if 'image_cont_selfcal' in context and 'datashape' not in context['image_cont_selfcal']:
+        if not 'image_cont_selfcal' in context and not 'findcont' in context:
+            print('Create a datashape') 
             updated_context = add_to_context(data, key='datashape', stage='image_cont_selfcal')
-            updated_context = add_to_context(caltable, key='data', stage='image_cont_selfcal')
-            data={}
-        elif 'findcont' in context and 'datashape' not in context['findcont']:
-            updated_context = add_to_context(data, key='datashape', stage='findcont')
+        else:
+            if 'image_cont_selfcal' in context and 'datashape' not in context['image_cont_selfcal']:
+                updated_context = add_to_context(data, key='datashape', stage='image_cont_selfcal')
+        #    updated_context = add_to_context(caltable, key='data', stage='image_cont_selfcal')
+            elif 'findcont' in context and 'datashape' not in context['findcont']:
+                updated_context = add_to_context(data, key='datashape', stage='findcont')
+        data = {}
     image_perspw_cont(data, src='target', interactive=False)

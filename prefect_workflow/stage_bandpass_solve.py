@@ -33,9 +33,10 @@ def save_model_vis(bp_data):
 
 @task(tags=["calibration"])
 def amp_phase_solve(bp_data, src):
-    solve(bp_data, src=src, combine='scan')
+    # solve(bp_data, src=src, combine='scan')
     # Currently, this does not return anything, so...
-    return fake_data_generator(bp_data, "bcal")
+    #return fake_data_generator(bp_data, "bcal")
+    return solve(bp_data, src=src, combine='scan', soltype='bcal')
 
 
 

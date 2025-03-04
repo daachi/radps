@@ -20,29 +20,33 @@ def calc_snr(gaincal):
 
 @task(tags=["calibration"])
 def per_spw_gain_soln(gaincal, src):
-    solve(gaincal, src=src, combine="scan")
+    # solve(gaincal, src=src, combine="scan")
     # Currently, this does not return anything, so...
-    return fake_data_generator(gaincal, "gcal")
+    # return fake_data_generator(gaincal, "gcal")
+     return solve(gaincal, src=src, combine="scan", soltype="gcal")
 
 
 @task(tags=["calibration"])
 def best_spw_gain_soln(gaincal, src):
-    solve(gaincal, src=src, combine="scan")
+    # solve(gaincal, src=src, combine="scan")
     # Currently, this does not return anything, so...
-    return fake_data_generator(gaincal, "gcal")
+    # return fake_data_generator(gaincal, "gcal")
+     return solve(gaincal, src=src, combine="scan", soltype="gcal")
 
 
 @task(tags=["calibration"])
 def combinespw_gain_soln(gaincal, src):
-    solve(gaincal, src=src, combine="spw")
+    # solve(gaincal, src=src, combine="spw")
     # Currently, this does not return anything, so...
-    return fake_data_generator(gaincal, "gcal")
+    # return fake_data_generator(gaincal, "gcal")
+     return solve(gaincal, src=src, combine="spw", soltype="gcal")
 
 @task(tags=["calibration"])
 def global_gain_soln(gaincal, src):
-    solve(gaincal, src=src, combine="spw")
+    # solve(gaincal, src=src, combine="spw")
     # Currently, this does not return anything, so...
-    return fake_data_generator(gaincal, "gcal")
+    # return fake_data_generator(gaincal, "gcal")
+     return solve(gaincal, src=src, combine="scan", soltype="gcal")
 
 @task(tags=["qa"])
 def gaincal_qa_score(gaincal) -> dict:

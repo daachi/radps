@@ -2,7 +2,7 @@
 from prefect import task, flow, tags
 from prefect.runtime import task_run, flow_run
 from core import (fake_qa_score, create_qa_artifact, sleep_placeholder,
-                  load_context, add_to_context)
+                  load_context, add_to_context, fake_data_generator)
 import numpy as np
 from matplotlib.image import imsave
 import os
@@ -24,14 +24,15 @@ def generate_vis_datashape(addchan=False) -> dict:
         datashape['target']['n_nchan'] = nchan
     return datashape 
 
-def generate_fake_image(datashape):
+def generate_fake_image(imdata):
     """ Generate a fake png image """ 
-    imsize = datashape['x']
-    nchan = datashape['nchan']
-    npol = datashape['npol']
-    imdata = np.zeros((imsize,imsize,nchan,npol))
-    imdata[0,0,0,0] = 1.0
-    imsave('fake_image.png',imdata)
+    #imsize = datashape['x']
+    #nchan = datashape['nchan']
+    #npol = datashape['npol']
+    #imdata = np.zeros((imsize,imsize,nchan,npol))
+    #imdata[0,0,0,0] = 1.0
+
+    imsave('fake_image.png',imdata.compute())
     imageurl = pathlib.Path('fake_image.png').resolve().as_uri()
     return imageurl 
 
@@ -70,8 +71,13 @@ def reformat_selfcal_result(selfcal_result:dict) -> dict:
     data_result = {'image':{}, 'caltables':{}}
     qa_result = {}
     for soltype in selfcal_result:
+        print('soltype=',soltype)
+        print('selfcal_result[soltype]=',selfcal_result[soltype])
+
         data_result['image'].update({soltype: selfcal_result[soltype]['updated_image']['image']})
         data_result['caltables'].update({soltype: selfcal_result[soltype]['caltable']})
+        if 'final_solution' in selfcal_result[soltype]:
+            data_result['caltables'].update({'final_selfcal': soltype})
         qa_result.update({f'{soltype}_selfcal': selfcal_result[soltype]['QA']})
     return data_result, qa_result 
 
@@ -174,7 +180,7 @@ def archive_export(data, src, paraxes='fieldandspw') -> list:
     return 
 
 @flow(flow_run_name=generate_flow_name)
-def solve(data, src, combine=None, niter=2, soltype='calibration'):
+def solve(data, src, combine=None, niter=2, soltype='gcal'):
     """
     general solver
       soltype determines main output result type either caltable/visibilities or images   
@@ -227,26 +233,26 @@ def solve(data, src, combine=None, niter=2, soltype='calibration'):
             for model_future in model_futures:
                 model_future.wait()
             model_par.append(model)
-        if ret==dict() and type == 'calibration':
-            ret = model_par  # currently this contains an empty list
-            # add a fake caltable info. 
-            ret['caltables'] = 'caltable_loc'
+        if ret==dict() and (soltype == 'bcal' or soltype == 'gcal'):
+            #ret = model_par  # currently this contains an empty list
+            # add a fake caltable info.
+            caltable = fake_data_generator(data[src], type=soltype)
+            ret['caltable'] = caltable
 
         elif 'imaging' in soltype:
             # add input vis data(shape) info 
             srcdata = dict()
             srcdata[src] = dict(datashape[src])
-            if soltype == 'cube_imaging':
-                ret['image'] = generate_image_datashape(512,nchan=n_chan) 
-            else:
-                ret['image'] = generate_image_datashape(512)
-            ret.update(srcdata) # need a dasashape for trigger parallization
+            ret['image'] = fake_data_generator(data[src], type='image')
+            # Need a datashape for trigger parallization when do achive_export
+            ret.update(srcdata) 
+
     return ret
 
 @flow (log_prints=True, description='Continuum imaging with self-calibration stage')
 def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     """Continuum imaging with self-calibration"""
-    print("Stating continuum imaging with self-calibration")
+    print("Starting continuum imaging with self-calibration")
 
     # load target calibrated visibility data 
     if data == dict():
@@ -257,10 +263,11 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
             print('context.pkl found. Loading context...')
             calibrated_data = find_data_context(load_context(), stage='findcont', context_key='datashape')
     else:
-        calibrated_data = dict(data)
+        calibrated_data = dict(data) 
 
      # extract only target data
     calibrated_data = {key: data[key] for key in data.keys() if key in [src]}    
+    print('calibrated data = ',calibrated_data)
     # make aggregate continuum image
     with tags('Initial imaging pre-selfcal'):
         target_image_data = solve(calibrated_data,
@@ -278,20 +285,21 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
          # selfcal iteration loop
         while(selfcal_hueristics):
             with tags('gain calibration '+selfcal_soltypes[count]):
-                cal_table = solve(calibrated_data,src='target',combine='spw')
+                cal_table = solve(calibrated_data,src=src,combine='spw')
+                print('cal_table=',cal_table)
             with tags('apply caltable'):
-                updated_data = applymodel(cal_table, data, src='target')
+                updated_data = applymodel(cal_table, data, src=src)
             with tags('selfcal imaging'):
-                updated_image = solve(updated_data, src='target', combine='both', soltype='imaging') 
+                updated_image = solve(updated_data, src=src, combine='both', soltype='imaging') 
             with tags('save model vis'):
-                updated_model_data = applymodel(updated_data, data, src='target')
+                updated_model_data = applymodel(updated_data, data, src=src)
             qa_return = fake_qa_score('image_SNR')
             snr = dict()
             snr['image_SNR'] = 10*qa_return['image_SNR'] # make fake SNR using qa value
             
             soltype = selfcal_soltypes[count]
             selfcalresult[soltype]={}
-            selfcalresult[soltype]['caltable'] = f'{soltype}_caltable_loc'
+            selfcalresult[soltype]['caltable'] = cal_table['caltable'] 
             selfcalresult[soltype]['updated_image']=updated_image
             selfcalresult[soltype]['QA'] = snr 
 
@@ -314,17 +322,28 @@ def image_cont_selfcal(data: dict={}, src: str='target', doselfcal: bool=False):
     else:
         print("Self-calibration not performed.")        
         return 'skipped'
-    # Usually it requires to rollback to previous images and cal solutions when exit from
+    # mark final solution
+    selfcalresult[selfcal_soltypes[lastiter]]['final_solution']=True
+    # Usually it requires to rollback to previous :w!
+    # images and cal solutions when exit from
     # selfcal loop and before saving the results. 
     # selfcalresult['updated_image'] = previous_image
     # Export continuum images, parallelize by field only
     print(f'Archiving final (best SNR) image: {selfcal_soltypes[lastiter]} image ')
     archived_data = archive_export(selfcalresult[selfcal_soltypes[lastiter]]['updated_image'],
-                                   src='target',paraxes='field')
+                                   src,paraxes='field')
     
     # Re-arrange selfcal result dictionary for storage
     data_results, qa_results = reformat_selfcal_result(selfcalresult)
     stored_context = add_to_context(inp=data_results, key='data', 
+                                    stage='image_cont_selfcal')
+    if 'datashape' in calibrated_data:
+        stored_context = add_to_context(inp=calibrated_data, key='datashape', 
+                                    stage='image_cont_selfcal')
+    elif 'data' in calibrated_data:
+        stored_context = add_to_context(inp=calibrated_data, key='data', 
+                                    stage='image_cont_selfcal')
+    stored_context = add_to_context(inp=calibrated_data, key='data', 
                                     stage='image_cont_selfcal')
     stored_context = add_to_context(inp={src: calibrated_data[src]}, key='datashape', stage='image_cont_selfcal' )                                 
     print(f'Final stored context: {stored_context}')    
