@@ -64,7 +64,7 @@ def bandpass_solve(bpcal_name, bpcal=None, failures=False):
     try:
         bpcal = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
         print(f"Using bandpass calibrator from context {bpcal[bpcal_name]}")
-    except OSError as e:
+    except (OSError, KeyError) as e:
         print("Bandpass calibrator not found in context. Error: {}".format(repr(e)))
         print("Using backup default value.")
 

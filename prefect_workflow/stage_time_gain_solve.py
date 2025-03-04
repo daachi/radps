@@ -82,7 +82,7 @@ def time_gain_solve(gaincal_name, gaincal, failures=False):
         gaincal = find_data_context(context, stage="calibrator_data_import_and_prep", context_key='datashape')
         print(gaincal[gaincal_name])
         print(f"Using gain calibrator from context for {gaincal_name}")
-    except OSError as e:
+    except (OSError, KeyError) as e:
         print("Gain Calibrator not found in context. Error: {}".format(repr(e)))
         print(f"Using backup default value for {gaincal_name}")
 
