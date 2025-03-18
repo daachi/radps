@@ -2,11 +2,15 @@ import time
 import random
 import pickle
 import numpy as np
+import json
 import dask.array as da
 
 from copy import deepcopy
 from datetime import datetime
 from prefect import flow, task
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, JSON, DateTime, func
+from prefect_sqlalchemy import SqlAlchemyConnector, ConnectionComponents, SyncDriver
+
 
 from prefect.artifacts import (
     create_markdown_artifact,
@@ -52,16 +56,67 @@ class Context:
 @task(log_prints=True)
 def create_context():
     """Create and return context"""
-    context = Context()
-    return context.to_dict()
+    try:
+        connector = SqlAlchemyConnector(
+            connection_info=ConnectionComponents(
+                driver=SyncDriver.SQLITE_PYSQLITE,
+                database="database.db"
+            )
+        )
+        connector.save("sqlite-block")
+    except:
+        print("Block already exists. Skipping creation.")
+
+    engine = create_engine('sqlite:///database.db', echo=True)
+    meta = MetaData()
+
+    context = Table(
+        'context', meta,
+        Column('id', Integer, primary_key=True),
+        Column('stage', String),
+        Column('key', String),
+        Column('data', JSON),
+        Column("date_created", DateTime, server_default=func.now()),
+        Column("date_updated", DateTime, onupdate=func.now())
+    )
+
+    meta.create_all(engine)
+
+    new_rows = None
+    data = {}
+
+    with SqlAlchemyConnector.load("sqlite-block") as connector:
+        new_rows = connector.fetch_many("SELECT * FROM context", size=2)
+        for row in new_rows:
+            print(f"Type: {type(row)}")
+            print(f"Row: {row}")
+            data['stage'] = row[1]
+            data['key'] = row[2]
+            data['data'] = row[3]
+
+    data["context"] = "context.db"
+    print(f"Create context results: {data}")
+    return data
 
 
 @task(log_prints=True)
 def load_context() -> dict:
     """Load and return context"""
-    context_object = Context.load()
-    context_dict = context_object.to_dict()
-    return context_dict
+    data = {}
+    with SqlAlchemyConnector.load("sqlite-block") as connector:
+        new_rows = connector.fetch_many("SELECT * FROM context")
+        for row in new_rows:
+            print(f"Type: {type(row)}")
+            print(f"Row: {row}")
+            data['stage'] = row[1]
+            data['key'] = row[2]
+            data['data'] = row[3]
+
+    data["context"] = "context.db"
+#    context_object = Context.load()
+#    context_dict = context_object.to_dict()
+    print(f"Load context results: {data}")
+#    return context_dict
 
 
 def generate_random_complex_array(shape):
@@ -138,26 +193,34 @@ def add_to_context(inp: dict, key="data", stage="unknown_stage") -> dict:
     Will be stored under the provided key.
     Returns the full current context dict
     """
-    context_object = Context.load()
+    print(f"Input to add to context: {inp}")
+    with SqlAlchemyConnector.load("sqlite-block") as connector:
+        connector.execute(
+            "INSERT INTO context (stage, key, data) VALUES (:stage, :key, :data);",
+            parameters={"stage": stage, "key": key, "data": json.dumps(inp)},
+        )
+    return load_context()
 
-    if stage in context_object.data:
-        if key in context_object.data[stage]:
-            if isinstance(context_object.data[stage][key], dict):
-                context_object.data[stage][key].update(inp)
-            else:
-                now = datetime.now()
-                datetime_string = now.strftime("%Y%m%d%H%M%S")
-                new_key = f"{key}_{datetime_string}"
-                context_object.data[stage][new_key] = inp
-        else:
-            context_object.data[stage][key] = inp
-    else:
-        context_object.data[stage] = {}
-        context_object.data[stage][key] = inp
+    # context_object = Context.load()
 
-    context_object.save()
-    sleep_placeholder(1.0)
-    return context_object.to_dict()
+    # if stage in context_object.data:
+    #     if key in context_object.data[stage]:
+    #         if isinstance(context_object.data[stage][key], dict):
+    #             context_object.data[stage][key].update(inp)
+    #         else:
+    #             now = datetime.now()
+    #             datetime_string = now.strftime("%Y%m%d%H%M%S")
+    #             new_key = f"{key}_{datetime_string}"
+    #             context_object.data[stage][new_key] = inp
+    #     else:
+    #         context_object.data[stage][key] = inp
+    # else:
+    #     context_object.data[stage] = {}
+    #     context_object.data[stage][key] = inp
+
+    # context_object.save()
+    # sleep_placeholder(1.0)
+    # return context_object.to_dict()
 
 
 def fake_qa_score(name: str = None, **kwargs) -> dict:
