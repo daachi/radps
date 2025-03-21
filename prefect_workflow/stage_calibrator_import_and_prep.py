@@ -49,8 +49,6 @@ def calibrator_data_import_and_prep(calibrator, failures=False):
     logger = get_run_logger()
     logger.info(f"Starting calibrator data import and prep for {calibrator}")
 
-    context = create_context()
-
     logger.info(f"Importing data from archive for {calibrator}")
     calibrator_data = fake_archive_query(calibrator, failures=failures, extra_data=False, stage_name="calibrator_data_import_and_prep")
 

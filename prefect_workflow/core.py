@@ -60,39 +60,47 @@ def create_context():
         connector = SqlAlchemyConnector(
             connection_info=ConnectionComponents(
                 driver=SyncDriver.SQLITE_PYSQLITE,
-                database="database.db"
+                database="context.db"
             )
         )
-        connector.save("sqlite-block")
+        connector.save("sqlite-block-context")
     except:
         print("Block already exists. Skipping creation.")
 
-    engine = create_engine('sqlite:///database.db', echo=True)
-    meta = MetaData()
+    # engine = create_engine('sqlite:///database.db', echo=True)
+    # meta = MetaData()
 
-    context = Table(
-        'context', meta,
-        Column('id', Integer, primary_key=True),
-        Column('stage', String),
-        Column('key', String),
-        Column('data', JSON),
-        Column("date_created", DateTime, server_default=func.now()),
-        Column("date_updated", DateTime, onupdate=func.now())
-    )
+    # context = Table(
+    #     'context', meta,
+    #     Column('id', Integer, primary_key=True),
+    #     Column('stage', String),
+    #     Column('key', String),
+    #     Column('data', JSON),
+    #     Column("date_created", DateTime, server_default=func.now()),
+    #     Column("date_updated", DateTime, onupdate=func.now())
+    # )
 
-    meta.create_all(engine)
+    try:
+#        with engine.begin() as conn:
+#        meta.create_all(engine)
+        with SqlAlchemyConnector.load("sqlite-block-context") as connector:
+            connector.execute(
+                "CREATE TABLE IF NOT EXISTS context (id INTEGER PRIMARY KEY AUTOINCREMENT, stage varchar, key varchar, data json);"
+            )
+    except Exception as e:
+        print(f"Error creating tables: {e}")
 
-    new_rows = None
+#    new_rows = None
     data = {}
 
-    with SqlAlchemyConnector.load("sqlite-block") as connector:
-        new_rows = connector.fetch_many("SELECT * FROM context", size=2)
-        for row in new_rows:
-            print(f"Type: {type(row)}")
-            print(f"Row: {row}")
-            data['stage'] = row[1]
-            data['key'] = row[2]
-            data['data'] = row[3]
+    # with SqlAlchemyConnector.load("sqlite-block-context") as connector:
+    #     new_rows = connector.fetch_many("SELECT * FROM context", size=2)
+    #     for row in new_rows:
+    #         print(f"Type: {type(row)}")
+    #         print(f"Row: {row}")
+    #         data['stage'] = row[1]
+    #         data['key'] = row[2]
+    #         data['data'] = row[3]
 
     data["context"] = "context.db"
     print(f"Create context results: {data}")
@@ -102,21 +110,31 @@ def create_context():
 @task(log_prints=True)
 def load_context() -> dict:
     """Load and return context"""
-    data = {}
-    with SqlAlchemyConnector.load("sqlite-block") as connector:
-        new_rows = connector.fetch_many("SELECT * FROM context")
+    context = {}
+    with SqlAlchemyConnector.load("sqlite-block-context") as connector:
+        new_rows = connector.fetch_many("SELECT * FROM context", size=50)
         for row in new_rows:
-            print(f"Type: {type(row)}")
-            print(f"Row: {row}")
-            data['stage'] = row[1]
-            data['key'] = row[2]
-            data['data'] = row[3]
+            stage, key, data = row[1], row[2], json.loads(row[3])
+            #context[stage] = {key: json.loads(data_json)}
 
-    data["context"] = "context.db"
-#    context_object = Context.load()
-#    context_dict = context_object.to_dict()
-    print(f"Load context results: {data}")
-#    return context_dict
+            if stage in context:
+                if key in context[stage]:
+                    if isinstance(context[stage][key], dict):
+                        context[stage][key].update(data)
+                    else:
+                        now = datetime.now()
+                        datetime_string = now.strftime("%Y%m%d%H%M%S")
+                        new_key = f"{key}_{datetime_string}"
+                        context[stage][new_key] = data
+                else:
+                    context[stage][key] = data
+            else:
+                context[stage] = {}
+                context[stage][key] = data
+
+    context["context"] = "context.db"
+    print(f"Load context results: {context}")
+    return context
 
 
 def generate_random_complex_array(shape):
@@ -194,7 +212,7 @@ def add_to_context(inp: dict, key="data", stage="unknown_stage") -> dict:
     Returns the full current context dict
     """
     print(f"Input to add to context: {inp}")
-    with SqlAlchemyConnector.load("sqlite-block") as connector:
+    with SqlAlchemyConnector.load("sqlite-block-context") as connector:
         connector.execute(
             "INSERT INTO context (stage, key, data) VALUES (:stage, :key, :data);",
             parameters={"stage": stage, "key": key, "data": json.dumps(inp)},

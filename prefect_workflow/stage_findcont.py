@@ -61,7 +61,7 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
         "Starting a pipeline stage that applies calibration to target and finds line-free continuum"
     )
     findcont_context = load_context()
-    print(f"Initial context: {findcont_context}")
+    print(f"Initial context findcont: {findcont_context}")
 
     datashape = findcont_context["data_import_and_prep"]["datashape"]
     try:
@@ -71,7 +71,7 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
         print("Generating a calibration table and 'applying' it to the input_data")
         findcont_context = add_to_context(datashape, key="datashape", stage="findcont")
         gcal_data = fake_data_generator(datashape["source_0"], "gcal")
-        findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
+        #findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
 
     try:
         calibrated_data = apply_caltable(input_data, gcal_data, "source_1")
