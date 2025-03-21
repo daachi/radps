@@ -61,7 +61,7 @@ def image_calibrator(calibrator, failures=False):
     logger.info("Imaging calibrator: {calibrator}")
     images = image_continuum(calibrated_vis, calibrator)
 
-    new_context = add_to_context({f"{calibrator}": images}, key="data", stage="calibrator_imaging")
+#    new_context = add_to_context({f"{calibrator}": images}, key="data", stage="calibrator_imaging")
 
     logger.info(f"Exporting continuum images to archive: {images}")
     result = export_continuum_images_to_archive(images, failures=failures)

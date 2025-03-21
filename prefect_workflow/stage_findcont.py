@@ -73,11 +73,14 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
         gcal_data = fake_data_generator(datashape["source_0"], "gcal")
         findcont_context = add_to_context({"gcal": gcal_data}, key="data", stage="findcont")
 
-    calibrated_data = apply_caltable(input_data, gcal_data, "source_1")
+    try:
+        calibrated_data = apply_caltable(input_data, gcal_data, "source_1")
+    except: 
+        calibrated_data = gcal_data
 
     print("Calling stage_image_cube.image_target_cube")
     dirty_cube = image_target_cube({"data": da.real(calibrated_data)})
-    findcont_context = add_to_context({"cube": dirty_cube}, "data", stage="findcont")
+#    findcont_context = add_to_context({"cube": dirty_cube}, "data", stage="findcont")
 
     # do some QA stuff
     complicated_score = {}
@@ -99,9 +102,9 @@ def calibrate_target_and_find_continuum(input_data) -> dict:
     complicated_score["url"] = pathlib.Path("image.png").resolve().as_uri()
     create_qa_artifact(complicated_score, artifact_type="image")
 
-    findcont_context = add_to_context(
-        {"calibrator": image_data}, "data", stage="findcont"
-    )
+#    findcont_context = add_to_context(
+#        {"calibrator": image_data}, "data", stage="findcont"
+#    )
 
     continuum_data = find_continuum(image_data)
     # TODO: update find_continuum to output the dummy data expected by subsequent stages

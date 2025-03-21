@@ -69,9 +69,9 @@ def fake_archive_query(dataset_name: str = "source_1", failures: bool = False,
             "data_source": "core",
             "url": "https://almascience.nrao.edu/aq/",
         }
-    context = add_to_context(
-        fake_result["data"], key="data", stage=stage_name
-    )
+#    context = add_to_context(
+#        fake_result["data"], key="data", stage=stage_name
+#    )
 
     return fake_result
 
@@ -95,7 +95,7 @@ def fake_flagging(fake_result, source_name: str) -> dict:
 
     if key_to_drop:
         transformed_data["data"].pop(f"{key_to_drop}")
-        add_to_context(transformed_data, "data", "data_import_and_prep")
+#        add_to_context(transformed_data, "data", "data_import_and_prep")
 
     return transformed_data
 
@@ -129,7 +129,7 @@ def alma_antpos_query(stage_name: str = "data_import_and_prep") -> dict:
     }
     context = add_to_context(datashape, "datashape", stage_name)
     gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
-    context = add_to_context({"gcal": gcal_data}, "data", stage_name)
+#    context = add_to_context({"gcal": gcal_data}, "data", stage_name)
 
     return antpos_result_json
 
@@ -145,7 +145,7 @@ def generate_caltable(antpos_result_json):
         "calibrator": {"n_field": 1, "n_spw": 3, "n_scan": 5},
     }
     gcal_data = fake_data_generator(datashape["calibrator"], "gcal")
-    context = add_to_context({"gcal": gcal_data}, "data", "data_import_and_prep")
+#    context = add_to_context({"gcal": gcal_data}, "data", "data_import_and_prep")
 
     return gcal_data
 
@@ -158,7 +158,7 @@ def apply_caltable(uncalibrated_data, caltable, target):
         da.take(caltable, indices=-1, axis=0) * uncalibrated_data["data"][target]
     )
 
-    context = add_to_context(calibrated_data, "data", "data_import_and_prep")
+#    context = add_to_context(calibrated_data, "data", "data_import_and_prep")
 
     return calibrated_data
 
