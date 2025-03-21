@@ -170,9 +170,9 @@ def image_target_cube(data: dict={},src: str='target',
         try:  
             # uvcontsub
             uvcontsub_res = uv_continuum_subtraction(has_spectraldata, src, failure_mode)
-            cur_context = add_to_context({src:{'spectral_data':uvcontsub_res['data']}}, 
-                                         key='data', 
-                                         stage='image_cube') 
+#            cur_context = add_to_context({src:{'spectral_data':uvcontsub_res['data']}}, 
+#                                         key='data', 
+#                                         stage='image_cube') 
 
             if interactive:
                 # use default maxiter  = 10
@@ -193,7 +193,7 @@ def image_target_cube(data: dict={},src: str='target',
 
             # store data, image(info), qa to the context
             stored_context = add_to_context(inp=calibrated_data, key='datashape', stage='image_cube')
-            stored_context = add_to_context(inp={'image':{src:{'cube':image_data['image']}}}, key='data', stage='image_cube')
+#            stored_context = add_to_context(inp={'image':{src:{'cube':image_data['image']}}}, key='data', stage='image_cube')
             stored_context = add_to_context(inp=qa_result, key='qa', stage='image_cube')
             
             # fake artifact generation
