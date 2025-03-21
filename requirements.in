@@ -1,5 +1,6 @@
 prefect
 prefect_dask
+prefect_sqlalchemy
 numpy
 dask
 scipy
