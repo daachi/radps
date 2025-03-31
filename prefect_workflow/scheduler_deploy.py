@@ -6,8 +6,8 @@ from prefect import flow
 from core import sleep_placeholder
 
 @flow
-def flow_test():
-    elapsed = sleep_placeholder(0.01)
+def flow_test(max_time=0.01):
+    elapsed = sleep_placeholder(max_time)
     return elapsed
 
 if __name__ == "__main__":
