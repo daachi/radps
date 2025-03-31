@@ -1,3 +1,5 @@
+import os
+
 from prefect import serve
 from prefect import flow
 
@@ -12,4 +14,7 @@ if __name__ == "__main__":
 
     flow_deploy = flow_test.to_deployment(name="flow overhead")
 
-    serve(flow_deploy)
+    serve(
+        flow_deploy,
+        limit=os.cpu_count()
+    )
