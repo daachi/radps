@@ -317,7 +317,7 @@ def sleep_placeholder(max_sleep: float = 3.0):
     Take up some time waiting.
     Intended to represent a task runtime.
     """
-    duration = random.uniform(0.1, max_sleep)
+    duration = random.uniform(0.001, max_sleep)
     time.sleep(duration)
     return duration
 

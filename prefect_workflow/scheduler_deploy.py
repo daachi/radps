@@ -7,7 +7,7 @@ from core import sleep_placeholder
 
 @flow
 def flow_test():
-    elapsed = sleep_placeholder(1.0)
+    elapsed = sleep_placeholder(0.01)
     return elapsed
 
 if __name__ == "__main__":
