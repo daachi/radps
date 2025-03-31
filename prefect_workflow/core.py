@@ -312,7 +312,17 @@ def randomly_fail(on=False) -> bool:
         return False
 
 
-def sleep_placeholder(duration: float = 3.0):
+def sleep_placeholder(max_sleep: float = 3.0):
+    """
+    Take up some time waiting.
+    Intended to represent a task runtime.
+    """
+    duration = random.uniform(0.1, max_sleep)
+    time.sleep(duration)
+    return duration
+
+
+def data_placeholder(duration: float = 3.0):
     """
     Take up some time computing with random numbers using dask arrays.
     Intended to represent a task runtime.
