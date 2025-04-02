@@ -19,40 +19,6 @@ from prefect.artifacts import (
 )
 
 
-class Context:
-    path = "context.pkl"
-
-    def __init__(self):
-        self.data = {}
-        self.save()
-
-    def save(self, filename="context.pkl"):
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-
-    def to_dict(self) -> dict:
-        """Creates and returns a dict representation of the context."""
-        data = deepcopy(self.data)
-        data["context"] = self.path
-        return data
-
-    @classmethod
-    def load(cls, filename=path):
-        """Loads a context from a file."""
-        try:
-            with open(filename, "rb") as f:
-                return pickle.load(f)
-        except FileNotFoundError:
-            print("Context file not found. Creating new context.")
-            return cls()
-        except (EOFError, pickle.UnpicklingError):
-            print("File read error. Creating new context.")
-            return cls()
-        except Exception as e:
-            print(f"Error loading context: {e}. Creating new context")
-            return cls()
-
-
 @task(log_prints=True)
 def create_context():
     """Create and return context"""
@@ -67,22 +33,7 @@ def create_context():
     except:
         print("Block already exists. Skipping creation.")
 
-    # engine = create_engine('sqlite:///database.db', echo=True)
-    # meta = MetaData()
-
-    # context = Table(
-    #     'context', meta,
-    #     Column('id', Integer, primary_key=True),
-    #     Column('stage', String),
-    #     Column('key', String),
-    #     Column('data', JSON),
-    #     Column("date_created", DateTime, server_default=func.now()),
-    #     Column("date_updated", DateTime, onupdate=func.now())
-    # )
-
     try:
-#        with engine.begin() as conn:
-#        meta.create_all(engine)
         with SqlAlchemyConnector.load("sqlite-block-context") as connector:
             connector.execute(
                 "CREATE TABLE IF NOT EXISTS context (id INTEGER PRIMARY KEY AUTOINCREMENT, stage varchar, key varchar, data json);"
@@ -90,17 +41,7 @@ def create_context():
     except Exception as e:
         print(f"Error creating tables: {e}")
 
-#    new_rows = None
     data = {}
-
-    # with SqlAlchemyConnector.load("sqlite-block-context") as connector:
-    #     new_rows = connector.fetch_many("SELECT * FROM context", size=2)
-    #     for row in new_rows:
-    #         print(f"Type: {type(row)}")
-    #         print(f"Row: {row}")
-    #         data['stage'] = row[1]
-    #         data['key'] = row[2]
-    #         data['data'] = row[3]
 
     data["context"] = "context.db"
     print(f"Create context results: {data}")
@@ -115,7 +56,6 @@ def load_context() -> dict:
         new_rows = connector.fetch_many("SELECT * FROM context", size=50)
         for row in new_rows:
             stage, key, data = row[1], row[2], json.loads(row[3])
-            #context[stage] = {key: json.loads(data_json)}
 
             if stage in context:
                 if key in context[stage]:
