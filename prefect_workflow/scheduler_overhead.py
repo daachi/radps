@@ -1,5 +1,9 @@
 import os
 import time
+import pandas as pd
+import psutil
+
+from datetime import datetime
 from prefect import task, flow, exceptions
 from prefect.futures import wait
 from prefect.task_runners import ThreadPoolTaskRunner
@@ -25,7 +29,7 @@ def flow_scaling_test(number_of_subflows):
         run_deployment(name="flow-test/flow overhead", parameters={}, timeout=0)
 
 
-@flow(task_runner=ThreadPoolTaskRunner(max_workers=os.cpu_count()))
+@flow(log_prints=True, task_runner=ThreadPoolTaskRunner(max_workers=os.cpu_count()))
 def task_scaling_test(number_of_tasks=1000):
 
     print(f"Working on {number_of_tasks} tasks in this flow invocation")
@@ -41,12 +45,53 @@ def task_scaling_test(number_of_tasks=1000):
 
     T_workflow = end - start
 
-    timing_results = [
-        {"Wall clock time": T_workflow, "Sum of sleep times": T_sum_task_times}
-    ]
+    timing_results = [{
+        "date_and_time": datetime.now().isoformat(),
+        "developer": os.getlogin(),
+        "system_name": "kberry_macbook",  # populate via argument?
+        "workflow": "task_scaling_test",  # populate via argument?
+        "n_tasks": number_of_tasks,
+        "min_sleep": 0.01,  # needs to be updated
+        "max_sleep": 0.01,  # needs to be updated
+        "Wall clock time": T_workflow,
+        "Sum of sleep times": T_sum_task_times,
+        "n_threads": os.cpu_count(),
+        "n_processes": os.cpu_count(),  # needs to be updated
+        "n_parallelism": os.cpu_count(),  # needs to be updated
+        "runner": "ThreadPoolTaskRunner",
+        "workflow_orchestration_framework": "prefect",
+        "backend_database": "postgres",
+        "workflow_type": "task",  # populate via argument?
+        "total_memory": psutil.virtual_memory().total / (1024 ** 3)
+        }]
     create_table_artifact(table=timing_results)
-
     return timing_results
+
+
+def save_timing_results(timing_results, filename="timing_results.csv"):
+    """Save timing results to a csv file.
+    Will append to an existing file if present.
+
+    The input expected is a dataframe with the following contents:
+        date_and_time
+        developer (name of developer)
+        system_name (machine/deployment name for example cvpost018)
+        workflow
+        n_tasks
+        min_sleep
+        max_sleep
+        T_sum_task_times (sum of individual sleep times)
+        T_workflow
+        n_threads (total number of threads)
+        n_processes (total number of processes)
+        n_parallelism (number of cores used and the following should be true n_processes = n_threads x n_processes)
+        runner (ThreadPoolTaskRunner, DaskTaskRunner, RayTaskRunner)
+        workflow_orchestration_framework (prefect, airflow, dask etc)
+        backend_database (postgress)
+        workflow_type (prefect: sub-flow, task)
+        total_memory (GB)
+    """
+    timing_results.to_csv(filename, mode="a", header=False)
 
 
 if __name__ == "__main__":
@@ -62,5 +107,12 @@ if __name__ == "__main__":
 
     print("Running task_scaling_test")
     sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
+    overall_task_scaling_results = []
+
     for size in sizes:
-        task_scaling_test(size)
+        timing_results = task_scaling_test(size)
+        save_timing_results(pd.DataFrame.from_dict(timing_results))
+        overall_task_scaling_results.append(timing_results[0])
+
+    # Artifact for overall task_scaling_test results:
+    create_table_artifact(table=overall_task_scaling_results, key="task-scaling-results")
