@@ -312,12 +312,15 @@ def randomly_fail(on=False) -> bool:
         return False
 
 
-def sleep_placeholder(max_sleep: float = 3.0):
+def sleep_placeholder(max_sleep: float = 3.0, **kwargs):
     """
     Take up some time waiting.
     Intended to represent a task runtime.
     """
-    duration = random.uniform(0.001, max_sleep)
+    if "min_sleep" in kwargs:
+        duration = random.uniform(kwargs.get("min_sleep"), max_sleep)
+    else:
+        duration = random.uniform(0.001, max_sleep)
     time.sleep(duration)
     return duration
 
