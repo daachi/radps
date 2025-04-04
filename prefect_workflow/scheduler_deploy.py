@@ -7,13 +7,13 @@ from core import sleep_placeholder
 
 
 @flow
-def flow_test(max_time=0.01):
-    elapsed = sleep_placeholder(max_time)
+def flow_test(min_time, max_time=0.01):
+    elapsed = sleep_placeholder(max_time, min_sleep=min_time)
     return elapsed
 
 
 if __name__ == "__main__":
 
-    flow_deploy = flow_test.to_deployment(name="flow overhead")
+    flow_deploy = flow_test.to_deployment(name="flow-overhead")
 
     serve(flow_deploy, limit=os.cpu_count())
