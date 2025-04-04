@@ -23,7 +23,7 @@ def task_test(min_time, max_time):
     return elapsed
 
 
-@flow
+@flow(log_prints=True)
 def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
     """
     Note: depends on scheduler_deploy.py having already been invoked, running as a background process.
@@ -33,10 +33,17 @@ def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
     results = []
     for tt in range(0, number_of_subflows):
         flow_run = run_deployment(name="flow-test/flow-overhead", parameters={"min_time": min_time, "max_time": max_time}, timeout=0)
-        results.append(flow_run.total_run_time.total_seconds())
+        results.append(flow_run)
     end = time.time()
 
-    T_sum_flow_times = sum(results)
+    # Trying to figure out how to get the actual return value from the deployed flow
+    actual_results = [flow_run.state for flow_run in results]
+    print(actual_results)
+    
+    # hardcode to zero for now
+#    T_sum_flow_times=sum(actual_results)
+    T_sum_flow_times = 0
+    
     T_workflow = end - start
 
     pc = get_run_context()
