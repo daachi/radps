@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import pandas as pd
@@ -13,6 +14,8 @@ from prefect.deployments import run_deployment
 from prefect.artifacts import create_table_artifact
 from prefect.context import get_run_context
 from prefect.logging import get_run_logger
+from prefect.flow_runs import wait_for_flow_run
+
 
 from core import sleep_placeholder
 
@@ -24,26 +27,33 @@ def task_test(min_time, max_time):
 
 
 @flow(log_prints=True)
-def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
+async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
     """
     Note: depends on scheduler_deploy.py having already been invoked, running as a background process.
     """
     print(f"Working on {number_of_subflows} flows in this flow invocation")
     start = time.time()
-    results = []
+    sub_flows = []
     for tt in range(0, number_of_subflows):
-        flow_run = run_deployment(name="flow-test/flow-overhead", parameters={"min_time": min_time, "max_time": max_time}, timeout=0)
-        results.append(flow_run)
+        sub_flows.append(
+            await run_deployment(name="flow-test/flow-overhead", parameters={"min_time": min_time, "max_time": max_time}, timeout=0))
     end = time.time()
 
-    # Trying to figure out how to get the actual return value from the deployed flow
-    actual_results = [flow_run.state for flow_run in results]
-    print(actual_results)
-    
+    subflows = [wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows]
+
+    # results are the FlowRun objects for each sub-flow, not the returned result
+    # how to get the returned result?
+    results = await asyncio.gather(*subflows)
+    results = [flow_run.state.result for flow_run in results]
+    print(results)
+
+    # Does not work
+    T_sum_flow_times = sum(results)
+    print(T_sum_flow_times)
+
     # hardcode to zero for now
-#    T_sum_flow_times=sum(actual_results)
     T_sum_flow_times = 0
-    
+
     T_workflow = end - start
 
     pc = get_run_context()
@@ -146,11 +156,12 @@ if __name__ == "__main__":
 
     print("Running flow_scaling_test")
     try:
-        sizes = [1000, 2000, 4000, 8000, 16000]
+#        sizes = [1000, 2000, 4000, 8000, 16000]
+        sizes = [10, 25, 150]
 
         overall_flow_scaling_results = []
         for size in sizes:
-            timings = flow_scaling_test(size, 0.001, 0.01)
+            timings = asyncio.run(flow_scaling_test(size, 0.001, 0.01))
             save_timing_results(pd.DataFrame.from_dict(timings))
             overall_flow_scaling_results.append(timings[0])
 
@@ -163,16 +174,16 @@ if __name__ == "__main__":
          table=overall_flow_scaling_results, key="flow-scaling-results"
     )
 
-    print("Running task_scaling_test")
-    sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
-    overall_task_scaling_results = []
+    # print("Running task_scaling_test")
+    # sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
+    # overall_task_scaling_results = []
 
-    for size in sizes:
-        timing_results = task_scaling_test(size, 0.001, 0.01)
-        save_timing_results(pd.DataFrame.from_dict(timing_results))
-        overall_task_scaling_results.append(timing_results[0])
+    # for size in sizes:
+    #     timing_results = task_scaling_test(size, 0.001, 0.01)
+    #     save_timing_results(pd.DataFrame.from_dict(timing_results))
+    #     overall_task_scaling_results.append(timing_results[0])
 
     # Artifact for overall task_scaling_test results:
-    create_table_artifact(
-        table=overall_task_scaling_results, key="task-scaling-results"
-    )
+    # create_table_artifact(
+    #     table=overall_task_scaling_results, key="task-scaling-results"
+    # )
