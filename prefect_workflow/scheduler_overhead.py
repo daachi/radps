@@ -44,8 +44,7 @@ async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
     # results are the FlowRun objects for each sub-flow, not the returned result
     # how to get the returned result?
     results = await asyncio.gather(*subflows)
-    results = [flow_run.state.result for flow_run in results]
-    print(results)
+    results = [await flow_run.state.result() for flow_run in results]
 
     # Does not work
     T_sum_flow_times = sum(results)
