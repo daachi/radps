@@ -18,6 +18,7 @@ from prefect.flow_runs import wait_for_flow_run
 
 
 from core import sleep_placeholder
+from resource_management import connect_to_scheduler
 
 
 @task
@@ -36,10 +37,17 @@ async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
     sub_flows = []
     for tt in range(0, number_of_subflows):
         sub_flows.append(
-            await run_deployment(name="flow-test/flow-overhead", parameters={"min_time": min_time, "max_time": max_time}, timeout=0))
+            await run_deployment(
+                name="flow-test/flow-overhead",
+                parameters={"min_time": min_time, "max_time": max_time},
+                timeout=0,
+            )
+        )
     end = time.time()
 
-    subflows = [wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows]
+    subflows = [
+        wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows
+    ]
 
     # results are the FlowRun objects for each sub-flow
     results = await asyncio.gather(*subflows)
@@ -106,7 +114,53 @@ def task_scaling_test(number_of_tasks=1000, min_time=0.001, max_time=0.01):
             "Wall clock time": T_workflow,
             "Sum of sleep times": T_sum_task_times,
             "n_threads": os.cpu_count(),
-            "n_processes": 1,  # think this should always be 1
+            "n_processes": 1,  # think this should always be 1 for the task case
+            "n_parallelism": os.cpu_count(),
+            "runner": str(type(pc.task_runner)),
+            "workflow_orchestration_framework": "prefect",
+            "backend_database": "postgres",
+            "workflow_type": "task",  # populate via argument?
+            "total_memory": psutil.virtual_memory().total / (1024**3),
+        }
+    ]
+    create_table_artifact(table=timing_results)
+    return timing_results
+
+
+tr = connect_to_scheduler()
+
+
+@flow(log_prints=True, task_runner=tr)
+def task_scaling_test_dask(number_of_tasks=1000, min_time=0.001, max_time=0.01):
+
+    print(f"Working on {number_of_tasks} tasks in this flow invocation")
+
+    start = time.time()
+    results = []
+    for num_tasks in range(0, number_of_tasks):
+        duration = task_test.submit(0.001, 0.01)
+        results.append(duration.result())
+    end = time.time()
+
+    T_sum_task_times = sum(results)
+
+    T_workflow = end - start
+
+    pc = get_run_context()
+
+    timing_results = [
+        {
+            "date_and_time": datetime.now().isoformat(),
+            "developer": os.getlogin(),
+            "system_name": platform.node(),
+            "workflow": inspect.stack()[0][3],
+            "n_tasks": number_of_tasks,
+            "min_sleep": min_time,
+            "max_sleep": max_time,
+            "Wall clock time": T_workflow,
+            "Sum of sleep times": T_sum_task_times,
+            "n_threads": os.cpu_count(),
+            "n_processes": 1,  # think this should always be 1 for the task case
             "n_parallelism": os.cpu_count(),
             "runner": str(type(pc.task_runner)),
             "workflow_orchestration_framework": "prefect",
@@ -149,7 +203,7 @@ if __name__ == "__main__":
 
     print("Running flow_scaling_test")
     try:
-        sizes = [1000, 2000, 4000, 8000, 16000]
+        sizes = [30, 100, 300, 1000, 3000]
         overall_flow_scaling_results = []
         for size in sizes:
             timings = asyncio.run(flow_scaling_test(size, 0.001, 0.01))
@@ -162,7 +216,7 @@ if __name__ == "__main__":
 
     # Artifact for overall flow_scaling_test results:
     create_table_artifact(
-         table=overall_flow_scaling_results, key="flow-scaling-results"
+        table=overall_flow_scaling_results, key="flow-scaling-results"
     )
 
     print("Running task_scaling_test")
@@ -177,4 +231,21 @@ if __name__ == "__main__":
     # Artifact for overall task_scaling_test results:
     create_table_artifact(
         table=overall_task_scaling_results, key="task-scaling-results"
+    )
+
+    ### Repeat, but for the dask version of the task_scaling_test
+    # annoying to have to do so much boilerplate, so maybe a dynamic
+    # flow that accepts task_runner as an argument might be better...
+    print("Running task_scaling_test, but with a dask cluster task_runner")
+    sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000]
+    overall_dask_task_scaling_results = []
+
+    for size in sizes:
+        timing_results = task_scaling_test_dask(size, 0.001, 0.01)
+        save_timing_results(pd.DataFrame.from_dict(timing_results))
+        overall_dask_task_scaling_results.append(timing_results[0])
+
+    # Artifact for overall task_scaling_test results:
+    create_table_artifact(
+        table=overall_dask_task_scaling_results, key="dask-task-scaling-results"
     )
