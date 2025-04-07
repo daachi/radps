@@ -41,17 +41,11 @@ async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
 
     subflows = [wait_for_flow_run(flow_run.id, poll_interval=5) for flow_run in sub_flows]
 
-    # results are the FlowRun objects for each sub-flow, not the returned result
-    # how to get the returned result?
+    # results are the FlowRun objects for each sub-flow
     results = await asyncio.gather(*subflows)
     results = [await flow_run.state.result() for flow_run in results]
 
-    # Does not work
     T_sum_flow_times = sum(results)
-    print(T_sum_flow_times)
-
-    # hardcode to zero for now
-    T_sum_flow_times = 0
 
     T_workflow = end - start
 
@@ -67,9 +61,9 @@ async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
             "min_sleep": min_time,
             "max_sleep": max_time,
             "Wall clock time": T_workflow,
-            "Sum of sleep times": T_sum_flow_times,  # FIXME: this is clearly incorrect (always 0)
-            "n_threads": os.cpu_count(),
-            "n_processes": 1,  # think this should always be 1
+            "Sum of sleep times": T_sum_flow_times,
+            "n_threads": 1,
+            "n_processes": os.cpu_count(),
             "n_parallelism": os.cpu_count(),
             "runner": str(type(pc.task_runner)),
             "workflow_orchestration_framework": "prefect",
@@ -156,7 +150,6 @@ if __name__ == "__main__":
     print("Running flow_scaling_test")
     try:
         sizes = [1000, 2000, 4000, 8000, 16000]
-
         overall_flow_scaling_results = []
         for size in sizes:
             timings = asyncio.run(flow_scaling_test(size, 0.001, 0.01))
