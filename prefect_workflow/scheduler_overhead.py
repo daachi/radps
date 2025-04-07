@@ -155,8 +155,7 @@ if __name__ == "__main__":
 
     print("Running flow_scaling_test")
     try:
-#        sizes = [1000, 2000, 4000, 8000, 16000]
-        sizes = [10, 25, 150]
+        sizes = [1000, 2000, 4000, 8000, 16000]
 
         overall_flow_scaling_results = []
         for size in sizes:
@@ -173,16 +172,16 @@ if __name__ == "__main__":
          table=overall_flow_scaling_results, key="flow-scaling-results"
     )
 
-    # print("Running task_scaling_test")
-    # sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
-    # overall_task_scaling_results = []
+    print("Running task_scaling_test")
+    sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
+    overall_task_scaling_results = []
 
-    # for size in sizes:
-    #     timing_results = task_scaling_test(size, 0.001, 0.01)
-    #     save_timing_results(pd.DataFrame.from_dict(timing_results))
-    #     overall_task_scaling_results.append(timing_results[0])
+    for size in sizes:
+        timing_results = task_scaling_test(size, 0.001, 0.01)
+        save_timing_results(pd.DataFrame.from_dict(timing_results))
+        overall_task_scaling_results.append(timing_results[0])
 
     # Artifact for overall task_scaling_test results:
-    # create_table_artifact(
-    #     table=overall_task_scaling_results, key="task-scaling-results"
-    # )
+    create_table_artifact(
+        table=overall_task_scaling_results, key="task-scaling-results"
+    )
