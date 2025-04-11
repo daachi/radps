@@ -21,6 +21,11 @@ from performance_metrics import save_timing_results
 from core import sleep_placeholder
 from resource_management import connect_to_scheduler
 
+import logging
+# Increase log level here so global settings are consistent across test envs
+logging.getLogger("prefect").setLevel(logging.WARNING)
+logging.getLogger("dask").setLevel(logging.WARNING)
+logging.getLogger("distributed").setLevel(logging.ERROR)
 
 @task
 def task_test(min_time, max_time):
