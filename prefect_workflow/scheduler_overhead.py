@@ -92,6 +92,7 @@ async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
     create_table_artifact(table=timing_results)
     return timing_results
 
+
 def task_scaling_test(number_of_tasks=1000, min_time=0.001, max_time=0.01):
 
     print(f"Working on {number_of_tasks} tasks in this flow invocation")
@@ -128,15 +129,14 @@ def task_scaling_test(number_of_tasks=1000, min_time=0.001, max_time=0.01):
         }
     ]
 
-    create_table_artifact(table=timing_results)
     return timing_results
 
-    
+
 if __name__ == "__main__":
 
     print("Running flow_scaling_test")
     try:
-        sizes = [30]#, 100, 300, 1000]
+        sizes = [30, 100, 300, 1000]
         overall_flow_scaling_results = []
         for size in sizes:
             timings = asyncio.run(flow_scaling_test(size, 0.001, 0.01))
@@ -155,45 +155,31 @@ if __name__ == "__main__":
     print("Running task_scaling_test for two different task_runners")
     # create this connection inside __main__ for multiprocessing safety
     # ref. https://prefecthq.github.io/prefect-dask/task_runners/
-    tr = connect_to_scheduler()
+    dtr = connect_to_scheduler()
+    ttr = ThreadPoolTaskRunner(max_workers=os.cpu_count())
 
-    runners = [ThreadPoolTaskRunner(max_workers=os.cpu_count()), tr]
+    runners = [ttr, dtr]
 
     for runner in runners:
         if isinstance(runner, ThreadPoolTaskRunner):
-            print("Running task_scaling_test with ThreadPoolTaskRunner")
-            sizes = [1000, 2000, 4000]#, 8000, 16000, 32000, 64000, 128000]
-            overall_task_scaling_results = []
 
-            for size in sizes:
-                timing_results = flow(
-                    task_scaling_test(size, 0.001, 0.01),
-                    task_runner=runner,
-                    log_prints=True,
-                )
-                timing_results["runner"] = runner
-                save_timing_results(pd.DataFrame.from_dict(timing_results))
-                overall_task_scaling_results.append(timing_results[0])
-
-            create_table_artifact(
-                table=overall_task_scaling_results, key="task-scaling-results"
-            )
+            sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
 
         if isinstance(runner, DaskTaskRunner):
-            print("Running task_scaling_test with DaskTaskRunner")
-            sizes = [1000, 2000, 4000]#, 8000, 16000, 32000, 64000, 80000]
-            overall_dask_task_scaling_results = []
 
-            for size in sizes:
-                timing_results = flow(
-                    task_scaling_test(size, 0.001, 0.01),
-                    task_runner=runner,
-                    log_prints=True,
-                )
-                timing_results["runner"] = runner
-                save_timing_results(pd.DataFrame.from_dict(timing_results))
-                overall_dask_task_scaling_results.append(timing_results[0])
+            sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
 
-            create_table_artifact(
-                table=overall_dask_task_scaling_results, key="dask-task-scaling-results"
-            )
+        @flow(task_runner=runner)
+        def task_scaling_flow(ntasks) -> dict:
+            ret = task_scaling_test(ntasks, 0.001, 0.01)
+            create_table_artifact(table=ret)
+            return ret
+
+        print(f"Running task_scaling_test with {runner}")
+        overall_task_scaling_results = []
+
+        for size in sizes:
+            timing_results = task_scaling_flow(size)
+            timing_results[0]["runner"] = runner
+            save_timing_results(pd.DataFrame.from_dict(timing_results))
+            overall_task_scaling_results.append(timing_results[0])
