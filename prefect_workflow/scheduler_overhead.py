@@ -83,13 +83,13 @@ async def flow_scaling_test(number_of_subflows, min_time=0.001, max_time=0.01):
             "n_processes": os.cpu_count(),
             "n_parallelism": os.cpu_count(),
             "runner": str(type(pc.task_runner)),
-            "workflow_orchestration_framework": "prefect",
-            "backend_database": "postgres",
+            "workflow_orchestration_framework": "Prefect",
+            "backend_database": "postgreSQL",
             "workflow_type": "flow",  # populate via argument?
             "total_memory": psutil.virtual_memory().total / (1024**3),
         }
     ]
-    create_table_artifact(table=timing_results)
+    await create_table_artifact(table=timing_results)
     return timing_results
 
 
@@ -175,11 +175,11 @@ if __name__ == "__main__":
             create_table_artifact(table=ret)
             return ret
 
-        print(f"Running task_scaling_test with {runner}")
+        print(f"Running task_scaling_test with {type(runner)}")
         overall_task_scaling_results = []
 
         for size in sizes:
             timing_results = task_scaling_flow(size)
-            timing_results[0]["runner"] = runner
+            timing_results[0]["runner"] = type(runner)
             save_timing_results(pd.DataFrame.from_dict(timing_results))
             overall_task_scaling_results.append(timing_results[0])
