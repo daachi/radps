@@ -1,4 +1,4 @@
-def save_timing_results(timing_results, filename="timing_results.csv"):
+def save_timing_results(timing_results, filename="timing_results.csv", header=False):
     """Save timing results to a csv file.
     Will append to an existing file if present.
 
@@ -21,4 +21,4 @@ def save_timing_results(timing_results, filename="timing_results.csv"):
         workflow_type (prefect: sub-flow, task)
         total_memory (GB)
     """
-    timing_results.to_csv(filename, mode="a", header=False)
+    timing_results.to_csv(filename, mode="a", header=header)

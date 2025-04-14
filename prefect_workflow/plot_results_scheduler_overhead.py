@@ -13,21 +13,33 @@ def plot_results(csv_file):
     #plt.figure(figsize=(10, 5))
     for workflow in np.unique(df["workflow"]):
         df_subset = df[df["workflow"] == workflow]
-        for min_sleep in np.unique(df["min_sleep"]):
-            df_result = df_subset[df_subset["min_sleep"] == min_sleep]
-            max_sleep = df_result["max_sleep"].iloc[0]
-            ax.plot(
-                df_result["n_subflows"],
-                df_result["Wall clock time"],
-                label=f"{workflow}: T_workflow (min_sleep={min_sleep}, max_sleep={max_sleep})",
-                marker="o",
-            )
-            ax.plot(
-                df_result["n_subflows"],
-                df_result["Sum of sleep times"] / df_result["n_parallelism"],
-                label=f"{workflow}: T_tasks / n_parallelism (min_sleep={min_sleep}, max_sleep={max_sleep})",
-                marker="s",
-            )
+        for runner in np.unique(df_subset["runner"]):
+            runner_name = runner.split('.')[-1].replace("'>",'')
+            df_subsubset = df_subset[df_subset["runner"] == runner ]
+            for min_sleep in np.unique(df_subsubset["min_sleep"]):
+                df_result = df_subsubset[df_subsubset["min_sleep"] == min_sleep]
+                max_sleep = df_result["max_sleep"].iloc[0]
+                workflow_type = df_result["workflow_type"].iloc[0]
+                nthreads = df_result["n_threads"].iloc[0]
+                nprocesses = df_result["n_processes"].iloc[0]
+                n_parallelism = df_result["n_parallelism"].iloc[0]
+                if "n_subflows" in df_result.columns:
+                    ntasks = df_result["n_subflows"]
+                else:
+                    ntasks = df_result["n_tasks"]
+                ax.plot(
+                    ntasks, # number of tasks or subflows
+                    df_result["Wall clock time"],
+                    #label=f"{workflow_type}-{runner_name}: T_workflow (min_sleep={min_sleep}, max_sleep={max_sleep})",
+                    label=f"{workflow_type}-{runner_name}: T_workflow (nthreads={nthreads}, nprocesses={nprocesses}, n_parallelism={n_parallelism})",
+                    marker="o",
+                )
+                ax.plot(
+                    ntasks,
+                    df_result["Sum of sleep times"] / df_result["n_parallelism"],
+                    label=f"{workflow_type}-{runner_name}: T_tasks / n_parallelism (nthreads={nthreads}, nprocesses={nprocesses}, n_parallelism={n_parallelism})",
+                    marker="s",
+                )
 
     ax.set_xlabel("Number of Tasks/Subflows")
     ax.set_ylabel("Time (s)")
@@ -38,8 +50,8 @@ def plot_results(csv_file):
     first_row_data = df.iloc[0]
     title = (f"system: {first_row_data['system_name']}, "
     f"mem:{first_row_data['total_memory']}GB, "
-    f"threads:{first_row_data['n_threads']}, "
-    f"n_parallelism:{first_row_data['n_parallelism']}, "
+    f"min_sleep:{first_row_data['min_sleep']}, "
+    f"max_sleep:{first_row_data['max_sleep']}, "
     f"start time:{first_row_data['date_and_time']} "
     f"({first_row_data['developer']})")
     plt.title(title)
@@ -51,20 +63,32 @@ def plot_results(csv_file):
     #plt.figure(figsize=(10, 5))
     for workflow in np.unique(df["workflow"]):
         df_subset = df[df["workflow"] == workflow]
-        for min_sleep in np.unique(df["min_sleep"]):
-            df_result = df_subset[df_subset["min_sleep"] == min_sleep]
-            max_sleep = df_result["max_sleep"].iloc[0]
-            ax.plot(
-                df_result["n_subflows"],
-                100
-                * (
-                    df_result["Wall clock time"]
-                    - df_result["Sum of sleep times"] / df_result["n_parallelism"]
+        for runner in np.unique(df_subset["runner"]):
+            runner_name = runner.split('.')[-1].replace("'>",'')
+            df_subsubset = df_subset[df_subset["runner"] == runner ]    
+            for min_sleep in np.unique(df_subsubset["min_sleep"]):
+                df_result = df_subsubset[df_subsubset["min_sleep"] == min_sleep]
+                max_sleep = df_result["max_sleep"].iloc[0]
+                workflow_type = df_result["workflow_type"].iloc[0]
+                nthreads = df_result["n_threads"].iloc[0]
+                nprocesses = df_result["n_processes"].iloc[0]
+                n_parallelism = df_result["n_parallelism"].iloc[0]
+                if "n_subflows" in df_result.columns:
+                    ntasks = df_result["n_subflows"]
+                else:
+                    ntasks = df_result["n_tasks"]
+                ax.plot(
+                    ntasks,
+                   100
+                   * (
+                        df_result["Wall clock time"]
+                        - df_result["Sum of sleep times"] / df_result["n_parallelism"]
+                    )
+                    / df_result["Wall clock time"],
+                    #label=f"(min_sleep={min_sleep}, max_sleep={max_sleep})",
+                    label=f"{workflow_type}-{runner_name}: nthreads={nthreads}, nprocesses={nprocesses}, n_parallelism={n_parallelism}",
+                    marker="s",
                 )
-                / df_result["Wall clock time"],
-                label=f"(min_sleep={min_sleep}, max_sleep={max_sleep})",
-                marker="s",
-            )
 
     ax.set_xlabel("Number of Tasks/Subflows")
     ax.set_ylabel("Percentage Overhead")

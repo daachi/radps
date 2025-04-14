@@ -122,6 +122,7 @@ def task_scaling_test(number_of_tasks=1000, min_time=0.001, max_time=0.01):
             "n_threads": os.cpu_count(),
             "n_processes": 1,  # think this should always be 1 for the task case
             "n_parallelism": os.cpu_count(),
+            "runner":"",
             "workflow_orchestration_framework": "Prefect",
             "backend_database": "postgreSQL",
             "workflow_type": "task",  # populate via argument?
@@ -134,19 +135,26 @@ def task_scaling_test(number_of_tasks=1000, min_time=0.001, max_time=0.01):
 
 if __name__ == "__main__":
 
+    write_header = False # write header when saving to csv
+    header = False # header exists in csv
+
     print("Running flow_scaling_test")
     try:
         sizes = [30, 100, 300, 1000]
         overall_flow_scaling_results = []
         for size in sizes:
             timings = asyncio.run(flow_scaling_test(size, 0.001, 0.01))
-            save_timing_results(pd.DataFrame.from_dict(timings))
+            if size == sizes[0]:
+                write_header = True
+                header = True
+            else:
+                write_header = False
+            save_timing_results(pd.DataFrame.from_dict(timings), header=write_header)
             overall_flow_scaling_results.append(timings[0])
 
     except exceptions.ObjectNotFound:
         print("Failed to find deployment expected by running scheduler_deploy.py")
         print("Skipping the rest of flow_scaling_test and proceeding")
-
     # Artifact for overall flow_scaling_test results:
     create_table_artifact(
         table=overall_flow_scaling_results, key="flow-scaling-results"
@@ -164,10 +172,14 @@ if __name__ == "__main__":
         if isinstance(runner, ThreadPoolTaskRunner):
 
             sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
+            if not header:
+                write_header = True
 
         if isinstance(runner, DaskTaskRunner):
 
             sizes = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
+            if not header:
+                write_header = True
 
         @flow(task_runner=runner)
         def task_scaling_flow(ntasks) -> dict:
@@ -181,5 +193,12 @@ if __name__ == "__main__":
         for size in sizes:
             timing_results = task_scaling_flow(size)
             timing_results[0]["runner"] = type(runner)
-            save_timing_results(pd.DataFrame.from_dict(timing_results))
+            
+            if not header and size == sizes[0]:
+                write_header = True
+                header = True
+            else:
+                write_header = False
+            
+            save_timing_results(pd.DataFrame.from_dict(timing_results), header=write_header)
             overall_task_scaling_results.append(timing_results[0])
