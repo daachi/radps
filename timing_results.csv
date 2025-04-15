@@ -21,7 +21,6 @@
 0,2025-04-14T18:51:21.417962,amcnicho,akaogiite,task_scaling_test,64000,0.001,0.01,536.2601568698883,228.24715365775054,12,1,12,<class 'prefect_dask.task_runners.DaskTaskRunner'>,Prefect,postgreSQL,task,36.0
 0,2025-04-14T19:02:25.914467,amcnicho,akaogiite,task_scaling_test,80000,0.001,0.01,664.2910108566284,697.3144672819479,12,1,12,<class 'prefect_dask.task_runners.DaskTaskRunner'>,Prefect,postgreSQL,task,36.0
 0,2025-04-14T19:20:19.040837,amcnicho,akaogiite,task_scaling_test,128000,0.001,0.01,1072.9308819770813,783.7888521314001,12,1,12,<class 'prefect_dask.task_runners.DaskTaskRunner'>,Prefect,postgreSQL,task,36.0
-,date_and_time,developer,system_name,workflow,n_subflows,min_sleep,max_sleep,Wall clock time,Sum of sleep times,n_threads,n_processes,n_parallelism,runner,workflow_orchestration_framework,backend_database,workflow_type,total_memory
 0,2025-04-14T20:43:25.509607,amcnicho,akaogiite,flow_scaling_test,30,0.03,0.3,1.3538811206817627,5.263940051081232,1,12,12,<class 'prefect.task_runners.ThreadPoolTaskRunner'>,Prefect,postgreSQL,flow,36.0
 0,2025-04-14T20:44:51.958067,amcnicho,akaogiite,flow_scaling_test,100,0.03,0.3,8.87296199798584,16.464808344914825,1,12,12,<class 'prefect.task_runners.ThreadPoolTaskRunner'>,Prefect,postgreSQL,flow,36.0
 0,2025-04-14T20:49:05.002924,amcnicho,akaogiite,flow_scaling_test,300,0.03,0.3,24.749134063720703,47.65585314930051,1,12,12,<class 'prefect.task_runners.ThreadPoolTaskRunner'>,Prefect,postgreSQL,flow,36.0
@@ -44,7 +43,6 @@
 0,2025-04-14T22:06:42.466043,amcnicho,akaogiite,task_scaling_test,64000,0.03,0.3,531.7202851772308,14757.437530098148,12,1,12,<class 'prefect_dask.task_runners.DaskTaskRunner'>,Prefect,postgreSQL,task,36.0
 0,2025-04-14T22:17:47.532695,amcnicho,akaogiite,task_scaling_test,80000,0.03,0.3,663.896625995636,12795.597141386857,12,1,12,<class 'prefect_dask.task_runners.DaskTaskRunner'>,Prefect,postgreSQL,task,36.0
 0,2025-04-14T22:35:31.761162,amcnicho,akaogiite,task_scaling_test,128000,0.03,0.3,1064.0366477966309,32880.88088575794,12,1,12,<class 'prefect_dask.task_runners.DaskTaskRunner'>,Prefect,postgreSQL,task,36.0
-,date_and_time,developer,system_name,workflow,n_subflows,min_sleep,max_sleep,Wall clock time,Sum of sleep times,n_threads,n_processes,n_parallelism,runner,workflow_orchestration_framework,backend_database,workflow_type,total_memory
 0,2025-04-15T07:58:00.959515,amcnicho,akaogiite,flow_scaling_test,30,0.1,1.0,1.3454599380493164,14.558975624539334,1,12,12,<class 'prefect.task_runners.ThreadPoolTaskRunner'>,Prefect,postgreSQL,flow,36.0
 0,2025-04-15T07:59:35.152652,amcnicho,akaogiite,flow_scaling_test,100,0.1,1.0,6.445080041885376,55.96614833819327,1,12,12,<class 'prefect.task_runners.ThreadPoolTaskRunner'>,Prefect,postgreSQL,flow,36.0
 0,2025-04-15T08:03:49.044842,amcnicho,akaogiite,flow_scaling_test,300,0.1,1.0,26.524386882781982,161.95222529344474,1,12,12,<class 'prefect.task_runners.ThreadPoolTaskRunner'>,Prefect,postgreSQL,flow,36.0
