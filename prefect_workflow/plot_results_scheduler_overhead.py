@@ -45,7 +45,7 @@ def plot_results(csv_file):
     ax.set_ylabel("Time (s)")
     # plt.xscale("log")
     # plt.yscale("log")
-    ax.legend()
+    ax.legend(bbox_to_anchor=(1.04, 1))
     # plt.title("Dask Scheduler Overhead Analysis")
     first_row_data = df.iloc[0]
     title = (f"system: {first_row_data['system_name']}, "
@@ -57,7 +57,7 @@ def plot_results(csv_file):
     plt.title(title)
     fig.suptitle(f"{first_row_data['workflow_orchestration_framework'].capitalize()} Scheduler Overhead Analysis")
     plt.grid()
-    plt.savefig("scheduler_scaling_timing.png")
+    plt.savefig("scheduler_scaling_timing.png", bbox_inches="tight")
 
     fig, ax = plt.subplots(figsize=(10, 5))
     #plt.figure(figsize=(10, 5))
@@ -94,14 +94,14 @@ def plot_results(csv_file):
     ax.set_ylabel("Percentage Overhead")
     # plt.xscale("log")
     # plt.yscale("log")
-    ax.legend()
+    ax.legend(bbox_to_anchor=(1.04, 1))
     # Put some common info in the title. 
     # Get the info from the first row
     plt.title(title)
     fig.suptitle(f"{first_row_data['workflow_orchestration_framework'].capitalize()} Scheduler Overhead Analysis")
     # plt.title("Dask Scheduler Overhead Analysis")
     plt.grid()
-    plt.savefig("scheduler_scaling_overhead.png")
+    plt.savefig("scheduler_scaling_overhead.png", bbox_inches="tight")
     plt.show()
 
 
