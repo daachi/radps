@@ -84,7 +84,7 @@ def plot_results(csv_file):
                         df_result["Wall clock time"]
                         - df_result["Sum of sleep times"] / df_result["n_parallelism"]
                     )
-                    / df_result["Wall clock time"],
+                    / (df_result["Sum of sleep times"] / df_result["n_parallelism"]),
                     #label=f"(min_sleep={min_sleep}, max_sleep={max_sleep})",
                     label=f"{workflow_type}-{runner_name}: nthreads={nthreads}, nprocesses={nprocesses}, n_parallelism={n_parallelism}",
                     marker="s",
