@@ -32,12 +32,15 @@ def plot_results(csv_file):
     plt.legend()
     # plt.title("Dask Scheduler Overhead Analysis")
     plt.grid()
-    plt.savefig("scheduler_scaling_timing.png")
+    plt.savefig("scheduler_scaling_timing_kristin.png")
 
     plt.figure(figsize=(10, 5))
+    # min_sleeps = np.unique(df["min_sleep"])
+    # for min_sleep in min_sleeps[1:]:
     for min_sleep in np.unique(df["min_sleep"]):
         df_subset = df[df["min_sleep"] == min_sleep]
         max_sleep = df_subset["max_sleep"].iloc[0]
+        plt.ylim([-2, 70])
         plt.plot(
             df_subset["num_tasks"],
             100
@@ -45,21 +48,23 @@ def plot_results(csv_file):
                 df_subset["T_workflow"]
                 - df_subset["T_sum_task_times"] / df_subset["n_parallelism"]
             )
-            / df_subset["T_workflow"],
+            / (df_subset["T_sum_task_times"] / df_subset["n_parallelism"]),
             label=f"(min_sleep={min_sleep}, max_sleep={max_sleep})",
             marker="s",
         )
 
     plt.xlabel("Number of Tasks")
-    plt.ylabel("Percentage Overhead")
+    plt.ylabel("Percentage Overhead Dask Scheduler")
     # plt.xscale("log")
     # plt.yscale("log")
     plt.legend()
-    # plt.title("Dask Scheduler Overhead Analysis")
+    plt.title("Scheduler Overhead Dask")
     plt.grid()
-    plt.savefig("scheduler_scaling_overhead.png")
+    plt.savefig("scheduler_scaling_overhead_fix_kristin.png")
+    #plt.savefig("scheduler_scaling_overhead_fix_zoom.png")
     plt.show()
 
 
 if __name__ == "__main__":
-    plot_results("scheduler_scaling_results.csv")
+    #plot_results("scheduler_scaling_results.csv")
+    plot_results("timing_results_kristin.csv")
