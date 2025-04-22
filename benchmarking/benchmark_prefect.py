@@ -112,12 +112,14 @@ def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threa
     dask_cluster.close()
     
 if __name__ == "__main__":
+    
+    #Test that benchmark is working
     logger = logging.getLogger("RADPS")
     logger.level = logging.DEBUG
     
-    list_n_tasks = [48]
-    list_sleep_times = [(1.0,1.0)]
+    list_sleep_times = [(2.0,2.0)]
     n_threads_per_process = os.cpu_count()
+    list_n_tasks = [n_threads_per_process*4]
     run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times, n_threads_per_process)
     
     n_processes = 1
@@ -126,3 +128,31 @@ if __name__ == "__main__":
     n_processes = os.cpu_count()
     n_threads_per_process = 1
     run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times, n_threads_per_process, n_processes)
+    
+    
+    # #Test long running tasks
+    # list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]
+    # n_threads_per_process = os.cpu_count()
+    # list_n_tasks = [n_threads_per_process*20]
+    # run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times, n_threads_per_process)
+    
+    # n_processes = 1
+    # run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times, n_threads_per_process, n_processes)
+    
+    # n_processes = os.cpu_count()
+    # n_threads_per_process = 1
+    # run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times, n_threads_per_process, n_processes)
+    
+    # #Test task scaling
+    # list_sleep_times = [(0.001,0.01),(0.01,0.1),(0.1,1.0)]
+    # n_threads_per_process = os.cpu_count()
+    # list_n_tasks = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
+    # run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times, n_threads_per_process)
+    
+    # n_processes = 1
+    # run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times, n_threads_per_process, n_processes)
+    
+    # n_processes = os.cpu_count()
+    # n_threads_per_process = 1
+    # run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times, n_threads_per_process, n_processes)
+    
