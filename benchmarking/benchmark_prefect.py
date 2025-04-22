@@ -17,7 +17,6 @@ from prefect.logging import get_run_logger
 from prefect.flow_runs import wait_for_flow_run
 from prefect_dask.task_runners import DaskTaskRunner
 
-from radps.prefect_workflow.performance_metrics import save_timing_results
 from radps.prefect_workflow.core import sleep_placeholder
 from radps.prefect_workflow.resource_management import connect_to_scheduler
 
@@ -29,12 +28,12 @@ logging.getLogger("dask").setLevel(logging.WARNING)
 logging.getLogger("distributed").setLevel(logging.WARNING)
 
 
-from benchmark_utils import organize_benchmark_result
+from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
 
 
 sleep_task = task(sleep_placeholder)
 
-def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_per_process,n_processes,runner):
+def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_per_process,n_processes,runner,run_id):
     
     logger = logging.getLogger("RADPS")
     
@@ -42,10 +41,6 @@ def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_p
         for sleep_times in list_sleep_times:
             t_min_sleep = sleep_times[0]
             t_max_sleep = sleep_times[1]
-
-            
-            # Save the results
-            run_id = 1
             
             start = time.time()
             duration_futures = []
@@ -72,6 +67,8 @@ def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_p
                                       n_processes=n_processes, 
                                       runner=runner)
             
+            save_timing_results(result_dict, filename="benchmark_results.csv")
+            
             logger.debug(f"Result dict: {result_dict}")
     
             # What you should expect for t_workflow when sleep_times > 0.1s
@@ -92,7 +89,7 @@ def run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times,n
 
     #Tests the ThreadPoolTaskRunner
     test_flow = flow(name="schedular overhead",task_runner=ThreadPoolTaskRunner(max_workers=os.cpu_count()))(schedular_benchmarks_single_run_id)
-    test_flow(list_n_tasks=list_n_tasks,list_sleep_times=list_sleep_times,n_threads_per_process=n_threads_per_process,n_processes=1,runner="ThreadPoolTaskRunner")
+    test_flow(list_n_tasks=list_n_tasks,list_sleep_times=list_sleep_times,n_threads_per_process=n_threads_per_process,n_processes=1,runner="ThreadPoolTaskRunner", run_id=generate_run_id())
 
 def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threads_per_process, n_processes):
     
@@ -109,11 +106,10 @@ def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threa
     )
     
     test_flow = flow(name="schedular overhead", task_runner=task_runner)(schedular_benchmarks_single_run_id)
-    test_flow(list_n_tasks=list_n_tasks, list_sleep_times=list_sleep_times, n_threads_per_process=n_threads_per_process, n_processes=n_processes, runner="DaskTaskRunner")
+    test_flow(list_n_tasks=list_n_tasks, list_sleep_times=list_sleep_times, n_threads_per_process=n_threads_per_process, n_processes=n_processes, runner="DaskTaskRunner", run_id=generate_run_id())
     
     task_runner.client.close()
     dask_cluster.close()
-
     
 if __name__ == "__main__":
     logger = logging.getLogger("RADPS")

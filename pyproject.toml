@@ -1,0 +1,21 @@
+[project]
+name = "radps"
+version = "0.0.1"
+description = "RADPS"
+authors = [
+    {name = "RADPS Scrum Team"},
+]
+license = {file = "LICENSE.txt"}
+readme = "README.md"
+requires-python = "==3.13.2"
+
+dependencies = [
+'dask==2025.3.0',
+'distributed==2025.3.0',
+'prefect==3.3.5',
+'prefect_dask==0.3.4',
+'pandas==2.2.3',
+'prefect_sqlalchemy==0.5.2'
+]
+
+

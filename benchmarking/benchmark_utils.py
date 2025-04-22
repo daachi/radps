@@ -1,32 +1,18 @@
-def save_timing_results(timing_results, filename="timing_results.csv", header=False):
+import os
+from datetime import datetime
+import pandas as pd
+
+def save_timing_results(timing_results, filename="timing_results.csv"):
     """Save timing results to a csv file.
     Will append to an existing file if present.
 
-    The input expected is a dataframe with the following contents:
-        date_and_time
-        developer (name of developer)
-        system_name (machine/deployment name for example cvpost018)
-        workflow
-        n_tasks
-        min_sleep
-        max_sleep
-        T_sum_task_times (sum of individual sleep times)
-        T_workflow
-        n_threads (total number of threads)
-        n_processes (total number of processes)
-        n_parallelism (number of cores used and the following should be true n_processes = n_threads x n_processes)
-        runner (ThreadPoolTaskRunner, DaskTaskRunner, RayTaskRunner)
-        workflow_orchestration_framework (prefect, airflow, dask etc)
-        backend_database (postgress)
-        workflow_type (prefect: sub-flow, task)
-        total_memory (GB)
     """
-    timing_results.to_csv(filename, mode="a", header=header)
+    file_exists = os.path.exists(filename)
+    result_df = pd.DataFrame.from_dict([timing_results])
+    result_df.to_csv(filename, mode="a", header=not file_exists, index=False)
 
 
 def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow_type, n_tasks, t_min_sleep, t_max_sleep, t_workflow, t_sum_task_times, n_threads_per_process, n_processes, runner):
-    from datetime import datetime
-    import os
     import psutil
     import platform
     import logging
@@ -36,7 +22,6 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
     
     overhead_percentage = 100*(t_workflow - t_sum_task_times/n_parallelism)/(t_sum_task_times/n_parallelism)
     overhead_per_task_seconds = (t_workflow - t_sum_task_times/n_parallelism)/(n_tasks/n_parallelism)
-    
     logger = logging.getLogger("RADPS")
     
     # Is this a reasonable threshold?
@@ -69,3 +54,9 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
     
     
     return benchmark_result 
+
+
+
+def generate_run_id():
+    run_id = os.getlogin() + "_" +datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return run_id
