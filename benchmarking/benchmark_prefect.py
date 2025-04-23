@@ -26,6 +26,7 @@ import logging
 logging.getLogger("prefect").setLevel(logging.WARNING)
 logging.getLogger("dask").setLevel(logging.WARNING)
 logging.getLogger("distributed").setLevel(logging.WARNING)
+logging.getLogger("RADPS").setLevel(logging.INFO)
 
 
 from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
@@ -33,12 +34,13 @@ from benchmark_utils import organize_benchmark_result, generate_run_id, save_tim
 
 sleep_task = task(sleep_placeholder)
 
-def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_per_process,n_processes,runner,run_id):
+def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_per_process,n_processes,runner,run_id,results_csv="benchmark_results.csv"):
     
     logger = logging.getLogger("RADPS")
     
     for n_tasks in list_n_tasks:
         for sleep_times in list_sleep_times:
+            logger.info("Started benchmark run with tasks" + str(n_tasks) + " and sleep times " + str(sleep_times))
             t_min_sleep = sleep_times[0]
             t_max_sleep = sleep_times[1]
             
@@ -67,34 +69,33 @@ def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_p
                                       n_processes=n_processes, 
                                       runner=runner)
             
-            save_timing_results(result_dict, filename="benchmark_results.csv")
+            save_timing_results(result_dict, filename=results_csv)
             
             logger.debug(f"Result dict: {result_dict}")
     
             # What you should expect for t_workflow when sleep_times > 0.1s
             # t_workflow ~ (n_tasks/n_parallelism)* (t_max_sleep + t_min_sleep)/2
-            logger.debug("t_workflow: %s", t_workflow)
-            logger.debug("Average t_sum_task_times per unit of parallelism: %s", t_sum_task_times/result_dict["n_parallelism"]) 
-            logger.debug("overhead percentage: %s", result_dict["overhead_percentage"])
-            logger.debug("overhead per task seconds: %s", result_dict["overhead_per_task_seconds"])
-            
-            logger.debug("*"*50)
+            logger.info("t_workflow: %s" , t_workflow)
+            logger.info("Average t_sum_task_times per unit of parallelism: %s", t_sum_task_times/result_dict["n_parallelism"]) 
+            logger.info("overhead percentage: %s", result_dict["overhead_percentage"])
+            logger.info("overhead per task seconds: %s", result_dict["overhead_per_task_seconds"])
+            logger.info("*"*50)
             
             # Save the results to a csv file
             
-def run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times,n_threads_per_process):
+def run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times,n_threads_per_process,results_csv="benchmark_results.csv"):
     
     logger = logging.getLogger("RADPS")
-    logger.debug("Running Prefect Scheduler Benchmarks")
+    logger.info("Running Prefect Scheduler Benchmarks with ThreadPoolTaskRunner n_threads = %s", n_threads_per_process)
 
     #Tests the ThreadPoolTaskRunner
-    test_flow = flow(name="schedular overhead",task_runner=ThreadPoolTaskRunner(max_workers=os.cpu_count()))(schedular_benchmarks_single_run_id)
-    test_flow(list_n_tasks=list_n_tasks,list_sleep_times=list_sleep_times,n_threads_per_process=n_threads_per_process,n_processes=1,runner="ThreadPoolTaskRunner", run_id=generate_run_id())
+    bench_flow = flow(name="schedular overhead",task_runner=ThreadPoolTaskRunner(max_workers=os.cpu_count()))(schedular_benchmarks_single_run_id)
+    bench_flow(list_n_tasks=list_n_tasks,list_sleep_times=list_sleep_times,n_threads_per_process=n_threads_per_process,n_processes=1,runner="ThreadPoolTaskRunner", run_id=generate_run_id(), results_csv = results_csv)
 
-def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threads_per_process, n_processes):
+def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threads_per_process, n_processes, results_csv="benchmark_results.csv"):
     
     logger = logging.getLogger("RADPS")
-    logger.debug("Running Prefect Scheduler Benchmarks")
+    logger.info("Running Prefect Scheduler Benchmarks with DaskTaskRunner n_processes = %s and n_threads = %s", n_processes, n_threads_per_process)
     import dask
     dask_cluster = dask.distributed.LocalCluster(
         n_workers=n_processes,
@@ -105,8 +106,8 @@ def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threa
         address=dask_cluster.scheduler_address,
     )
     
-    test_flow = flow(name="schedular overhead", task_runner=task_runner)(schedular_benchmarks_single_run_id)
-    test_flow(list_n_tasks=list_n_tasks, list_sleep_times=list_sleep_times, n_threads_per_process=n_threads_per_process, n_processes=n_processes, runner="DaskTaskRunner", run_id=generate_run_id())
+    bench_flow = flow(name="schedular overhead", task_runner=task_runner)(schedular_benchmarks_single_run_id)
+    bench_flow(list_n_tasks=list_n_tasks, list_sleep_times=list_sleep_times, n_threads_per_process=n_threads_per_process, n_processes=n_processes, runner="DaskTaskRunner", run_id=generate_run_id(), results_csv = results_csv)
     
     task_runner.client.close()
     dask_cluster.close()
@@ -114,8 +115,8 @@ def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threa
 if __name__ == "__main__":
     
     #Test that benchmark is working
-    logger = logging.getLogger("RADPS")
-    logger.level = logging.DEBUG
+    # logger = logging.getLogger("RADPS")
+    # logger.level = logging.DEBUG
     
     list_sleep_times = [(2.0,2.0)]
     n_threads_per_process = os.cpu_count()
@@ -128,7 +129,6 @@ if __name__ == "__main__":
     n_processes = os.cpu_count()
     n_threads_per_process = 1
     run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times, n_threads_per_process, n_processes)
-    
     
     # #Test long running tasks
     # list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]

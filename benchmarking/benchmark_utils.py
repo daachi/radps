@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 import pandas as pd
+import logging
 
 def save_timing_results(timing_results, filename="timing_results.csv"):
     """Save timing results to a csv file.
@@ -47,7 +48,7 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
             "n_processes": n_processes,  
             "n_parallelism": n_parallelism,
             "runner":runner,
-            "backend_database": "postgreSQL",
+            "backend_database": get_database_type(workflow_orchestration_framework),
             "workflow_type": workflow_type, 
             "total_memory": psutil.virtual_memory().total / (1024**3),
         }
@@ -60,3 +61,35 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
 def generate_run_id():
     run_id = os.getlogin() + "_" +datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return run_id
+
+
+def get_database_type(workflow_orchestration_framework):
+    if workflow_orchestration_framework == "prefect":
+        from prefect.settings import PREFECT_API_DATABASE_CONNECTION_URL
+        logger = logging.getLogger("RADPS")
+
+        # Get the connection URL
+        db_url = PREFECT_API_DATABASE_CONNECTION_URL.value()
+        
+        db_type = db_url.split(":")[0]
+        
+        logger.debug("Prefect database connection URL: %s", db_url)
+        return db_type
+    elif workflow_orchestration_framework == "airflow":
+        #No idea if this code works. Copolit suggested it.
+        from airflow import settings
+        from sqlalchemy.engine import Engine
+        from sqlalchemy.engine.url import make_url
+        
+        db_url = settings.SQL_ALCHEMY_CONN
+        db_type = make_url(db_url).drivername
+        
+        logger = logging.getLogger("RADPS")
+        logger.debug("Airflow database connection URL: %s", db_url)
+        
+        return db_type
+    elif workflow_orchestration_framework == "dask":
+        # Dask does not have a database connection URL
+        return "none"
+    else:
+        raise ValueError(f"Unknown workflow orchestration framework: {workflow_orchestration_framework}")
