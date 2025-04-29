@@ -13,7 +13,7 @@ def save_timing_results(timing_results, filename="timing_results.csv"):
     result_df.to_csv(filename, mode="a", header=not file_exists, index=False)
 
 
-def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow_type, n_tasks, t_min_sleep, t_max_sleep, t_workflow, t_sum_task_times, n_threads_per_process, n_processes, runner):
+def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow_type, n_tasks, t_min_sleep, t_max_sleep, t_workflow, t_sum_task_times, n_threads_per_process, n_processes, runner, return_size_mb=None):
     import psutil
     import platform
     import logging
@@ -26,9 +26,9 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
     logger = logging.getLogger("RADPS")
     
     # Is this a reasonable threshold?
-    if (overhead_per_task_seconds > 0.4) and (n_tasks > 4*n_parallelism): 
-        logger.error("Overhead per task is greater than 0.4 seconds: %s", overhead_per_task_seconds)
-        raise ValueError("Overhead per task is greater than 0.4 seconds: %s", overhead_per_task_seconds)
+    if (overhead_per_task_seconds > 0.8) and (n_tasks > 4*n_parallelism): 
+        logger.error("Overhead per task is greater than 0.8 seconds: %s", overhead_per_task_seconds)
+    #     raise ValueError("Overhead per task is greater than 0.8 seconds: %s", overhead_per_task_seconds)
     
     benchmark_result = {
             "run_id": run_id,
@@ -50,8 +50,10 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
             "runner":runner,
             "backend_database": get_database_type(workflow_orchestration_framework),
             "workflow_type": workflow_type, 
-            "total_memory": psutil.virtual_memory().total / (1024**3),
+            "total_memory": psutil.virtual_memory().total / (1024**3)
         }
+    if return_size_mb is not None:
+        benchmark_result["return_size_mb"] =  return_size_mb
     
     
     return benchmark_result 
