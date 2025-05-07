@@ -13,7 +13,7 @@ def save_timing_results(timing_results, filename="timing_results.csv"):
     result_df.to_csv(filename, mode="a", header=not file_exists, index=False)
 
 
-def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow_type, n_tasks, t_min_sleep, t_max_sleep, t_workflow, t_sum_task_times, n_threads_per_process, n_processes, runner, return_size_mb=None):
+def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow_type, n_tasks, t_min_sleep, t_max_sleep, t_workflow, t_sum_task_times, n_threads_per_process, n_processes, runner, return_size_mb=None, wait_for_maping=None):
     import psutil
     import platform
     import logging
@@ -54,6 +54,9 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
         }
     if return_size_mb is not None:
         benchmark_result["return_size_mb"] =  return_size_mb
+    
+    if wait_for_maping is not None:
+        benchmark_result["wait_for_maping"] =  wait_for_maping
     
     
     return benchmark_result 

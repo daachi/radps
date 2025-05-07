@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = "==3.13.2"
 
 dependencies = [
-'dask==2025.3.0',
-'distributed==2025.3.0',
-'prefect==3.3.5',
+'dask==2025.4.1',
+'distributed==2025.4.1',
+'prefect==3.4.0',
 'prefect_dask==0.3.4',
 'pandas==2.2.3',
 'prefect_sqlalchemy==0.5.2'

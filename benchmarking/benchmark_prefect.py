@@ -34,7 +34,7 @@ from benchmark_utils import organize_benchmark_result, generate_run_id, save_tim
 
 sleep_task = task(sleep_placeholder)
 
-def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_per_process,n_processes,runner,run_id,results_csv="benchmark_results.csv"):
+def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_per_process,n_processes,runner,run_id,results_csv="results/benchmark_results.csv"):
     
     logger = logging.getLogger("RADPS")
     
@@ -83,7 +83,7 @@ def schedular_benchmarks_single_run_id(list_n_tasks,list_sleep_times,n_threads_p
             
             # Save the results to a csv file
             
-def run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times,n_threads_per_process,results_csv="benchmark_results.csv"):
+def run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times,n_threads_per_process,results_csv="results/benchmark_results.csv"):
     
     logger = logging.getLogger("RADPS")
     logger.info("Running Prefect Scheduler Benchmarks with ThreadPoolTaskRunner n_threads = %s", n_threads_per_process)
@@ -92,11 +92,12 @@ def run_prefect_schedular_benchmarks_threadpool(list_n_tasks, list_sleep_times,n
     bench_flow = flow(name="schedular overhead",task_runner=ThreadPoolTaskRunner(max_workers=os.cpu_count()))(schedular_benchmarks_single_run_id)
     bench_flow(list_n_tasks=list_n_tasks,list_sleep_times=list_sleep_times,n_threads_per_process=n_threads_per_process,n_processes=1,runner="ThreadPoolTaskRunner", run_id=generate_run_id(), results_csv = results_csv)
 
-def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threads_per_process, n_processes, results_csv="benchmark_results.csv"):
+def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threads_per_process, n_processes, results_csv="results/benchmark_results.csv"):
     
     logger = logging.getLogger("RADPS")
     logger.info("Running Prefect Scheduler Benchmarks with DaskTaskRunner n_processes = %s and n_threads = %s", n_processes, n_threads_per_process)
     import dask
+    import dask.distributed
     dask_cluster = dask.distributed.LocalCluster(
         n_workers=n_processes,
         threads_per_worker=n_threads_per_process,
