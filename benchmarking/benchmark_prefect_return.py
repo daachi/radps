@@ -10,7 +10,7 @@ from prefect.task_runners import ThreadPoolTaskRunner
 from prefect_dask.task_runners import DaskTaskRunner
 from prefect.futures import wait
 
-from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
+from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results, setup_dask
 
 # Logging setup
 logging.getLogger("prefect").setLevel(logging.WARNING)
@@ -25,7 +25,7 @@ def sleep_and_generate_data(min_sleep: float, max_sleep: float, data_size_mb: in
     start_time = time.time()
     duration = random.uniform(min_sleep, max_sleep)
     time.sleep(duration)
-    data = np.ones((data_size_mb * 1024 * 1024 // 8,), dtype=np.float64)
+    data = np.ones((int(data_size_mb * 1024 * 1024 / 8),), dtype=np.float64)
     total_time = time.time() - start_time
     return data, total_time
 
@@ -109,20 +109,21 @@ def run_tree_benchmark(list_n_tasks, list_sleep_times, data_size_mb_list, task_r
 
 def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv):
     logger.info("Running with ThreadPoolTaskRunner")
-    run_tree_benchmark(
-        list_n_tasks=list_n_tasks,
-        list_sleep_times=list_sleep_times,
-        data_size_mb_list=data_size_mb_list,
-        task_runner=ThreadPoolTaskRunner(max_workers=n_threads_per_process),
-        runner_name="ThreadPoolTaskRunner",
-        n_threads_per_process=n_threads_per_process,
-        n_processes=1,
-        wait_for_maping=wait_for_maping,
-        results_csv=results_csv,
-    )
+    # run_tree_benchmark(
+    #     list_n_tasks=list_n_tasks,
+    #     list_sleep_times=list_sleep_times,
+    #     data_size_mb_list=data_size_mb_list,
+    #     task_runner=ThreadPoolTaskRunner(max_workers=n_threads_per_process),
+    #     runner_name="ThreadPoolTaskRunner",
+    #     n_threads_per_process=n_threads_per_process,
+    #     n_processes=1,
+    #     wait_for_maping=wait_for_maping,
+    #     results_csv=results_csv,
+    # )
 
     import dask
     import dask.distributed
+    setup_dask()
     logger.info("#"*50)
     dask_cluster = dask.distributed.LocalCluster(
         n_workers=1,
@@ -141,6 +142,11 @@ def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_t
         results_csv=results_csv,
     )
     dask_cluster.close()
+    try:
+        client = dask.distributed.Client.current()
+        client.close()
+    except:
+        logger.info("No client found.")
     
     logger.info("###########################################")
 
@@ -158,22 +164,27 @@ def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_t
         n_threads_per_process=1,
         n_processes=os.cpu_count(),
         wait_for_maping=wait_for_maping,
-        results_csv=results_csv,
+        results_csv=results_csv,   
     )
     dask_cluster.close()
+    try:
+        client = dask.distributed.Client.current()
+        client.close()
+    except:
+        logger.info("No client found.")
 
 
 if __name__ == "__main__":
     #To make sure that code is working:
-    list_sleep_times = [(2.0, 2.0)]
-    n_threads_per_process = os.cpu_count()
-    list_n_tasks = [n_threads_per_process * 4]
-    data_size_mb_list = [10] #MB
-    results_csv="results/benchmark_return_results.csv"
-    wait_for_maping=False
-    run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv)
+    # list_sleep_times = [(2.0, 2.0)]
+    # n_threads_per_process = os.cpu_count()
+    # list_n_tasks = [n_threads_per_process * 4]
+    # data_size_mb_list = [10] #MB
+    # results_csv="results/benchmark_return_results_jw.csv"
+    # wait_for_maping=False
+    # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv)
     
-    #Benchmark 1
+    ##Benchmark 1
     # list_sleep_times = [(0.1,1.0)]
     # n_threads_per_process = os.cpu_count()
     # list_n_tasks = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
@@ -182,13 +193,13 @@ if __name__ == "__main__":
     # wait_for_maping=False
     # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv)
     
-    #Benchmark 2
-    # list_sleep_times = list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]
-    # n_threads_per_process = os.cpu_count()
-    # list_n_tasks = [n_threads_per_process*20]
-    # data_size_mb_list = [0.1] #MB
-    # results_csv="results/benchmark_return_results.csv"
-    # wait_for_maping=False
-    # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv)
+    ##Benchmark 2
+    list_sleep_times = list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]
+    n_threads_per_process = os.cpu_count()
+    list_n_tasks = [n_threads_per_process*20]
+    data_size_mb_list = [0.1, 1.0, 10.0] #MB
+    results_csv="results/benchmark_return_results.csv"
+    wait_for_maping=True
+    run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv)
     
   

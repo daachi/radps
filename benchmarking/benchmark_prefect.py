@@ -29,7 +29,7 @@ logging.getLogger("distributed").setLevel(logging.WARNING)
 logging.getLogger("RADPS").setLevel(logging.INFO)
 
 
-from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
+from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results, setup_dask
 
 
 sleep_task = task(sleep_placeholder)
@@ -96,6 +96,7 @@ def run_prefect_schedular_benchmarks_dask(list_n_tasks, list_sleep_times,n_threa
     
     logger = logging.getLogger("RADPS")
     logger.info("Running Prefect Scheduler Benchmarks with DaskTaskRunner n_processes = %s and n_threads = %s", n_processes, n_threads_per_process)
+    setup_dask()
     import dask
     import dask.distributed
     dask_cluster = dask.distributed.LocalCluster(

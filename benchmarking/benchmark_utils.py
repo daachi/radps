@@ -3,6 +3,17 @@ from datetime import datetime
 import pandas as pd
 import logging
 
+def setup_dask():
+    import dask
+    dask.config.set({"distributed.scheduler.allowed-failures": 10})
+    dask.config.set({"distributed.scheduler.work-stealing": True})
+    dask.config.set({"distributed.scheduler.unknown-task-duration": "99m"})
+    dask.config.set({"distributed.worker.memory.pause": False})
+    dask.config.set({"distributed.worker.memory.terminate": False})
+    # dask.config.set({"distributed.worker.memory.recent-to-old-time": "999s"})
+    dask.config.set({"distributed.comm.timeouts.connect": "3600s"})
+    dask.config.set({"distributed.comm.timeouts.tcp": "3600s"})
+
 def save_timing_results(timing_results, filename="timing_results.csv"):
     """Save timing results to a csv file.
     Will append to an existing file if present.
