@@ -23,7 +23,7 @@ if __name__ == "__main__":
         }
     
     number_of_cycles = 10
-    number_fields = 36
+    number_fields = 1
     number_of_channels = 1
     number_of_stokes = 1
     
