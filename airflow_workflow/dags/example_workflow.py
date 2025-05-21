@@ -3,6 +3,7 @@ import pendulum
 import time
 
 from airflow.sdk import dag, task
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 
 @dag(
     dag_id="example_workflow",
@@ -18,10 +19,10 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    @task
-    def bandpass_solve():
-        time.sleep(1.0)
-        return True
+    model_out = TriggerDagRunOperator(
+        task_id="triggered_bandpass_solve",
+        trigger_dag_id="bandpass_solve"
+        )
 
     @task
     def time_gain_solve():
@@ -58,7 +59,7 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    calibrator_data_import_and_prep() >> bandpass_solve() >> time_gain_solve()
+    calibrator_data_import_and_prep() >> model_out >> time_gain_solve()
     [time_gain_solve(), target_data_import_and_prep()] >> calibrate_target_and_find_continuum()
     calibrate_target_and_find_continuum() >> [cube_imaging(), continuum_imaging_with_selfcal()]
     continuum_imaging_with_selfcal() >> per_spw_continuum_imaging()
