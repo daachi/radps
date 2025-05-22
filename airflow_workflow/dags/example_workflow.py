@@ -24,10 +24,10 @@ def example_workflow():
         trigger_dag_id="bandpass_solve"
         )
 
-    @task
-    def time_gain_solve():
-        time.sleep(1.0)
-        return True
+    time_gain_solve_out = TriggerDagRunOperator(
+        task_id="stage_time_gain_solve",
+        trigger_dag_id="time_gain_solve"
+        )
 
     @task
     def image_calibrators():
@@ -59,8 +59,8 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    calibrator_data >> bandpass_model_out >> time_gain_solve()
-    [time_gain_solve(), target_data] >> calibrate_target_and_find_continuum()
+    calibrator_data >> bandpass_model_out >> time_gain_solve_out
+    [time_gain_solve_out, target_data] >> calibrate_target_and_find_continuum()
     calibrate_target_and_find_continuum() >> [cube_imaging_out, continuum_imaging_with_selfcal()]
     continuum_imaging_with_selfcal() >> per_spw_continuum_imaging()
     
