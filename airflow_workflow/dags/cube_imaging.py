@@ -8,7 +8,7 @@ def  generate_qa(processname:str):
          return qascore
 
 @dag(
- dag_id="cube_imging",
+ dag_id="cube_imaging",
     schedule=None,
     start_date=datetime(2025,1,1),
     catchup=False,
@@ -100,12 +100,14 @@ def cube_imaging():
     meta_data = extract_metadata(10)
     spwlist= get_spwlist(meta_data)
     
+    # use override to change the generic task_id to specific task_id 
     post_uvcontsub_branch = check_qa_branch.override(task_id='post_uvcontsub_branch')(process="uvcontsub", next_branch_taskname="image_target_cube")
+    final_process = final_process()
     #image_target_cube_mapped = image_target_cube.expand(chan=chanlist)
     image_target_cube_branch = image_target_cube_group()
     data_prep() >> meta_data >> spwlist >> post_uvcontsub_branch
-    post_uvcontsub_branch >> image_target_cube_branch >> check_qa('target_image') >> final_process()
-    post_uvcontsub_branch >> final_process()
+    post_uvcontsub_branch >> image_target_cube_branch >> check_qa('target_image') >> final_process
+    post_uvcontsub_branch >> final_process
 
 
     #data_prep ()  >> meta_data >> spwlist >> chanlist >>  uvcontsub.expand(spwid=spwlist) >> image_target_cube.expand(chan=chanlist)
