@@ -1,15 +1,13 @@
 from airflow.decorators import dag, task
 from datetime import datetime
 
-
-@dag(dag_id="zimportdata", start_date=datetime(2023,1,1), schedule=None, catchup=False, tags=["skeleton"])
-def zimportdata_dag():
+@dag(dag_id="importdata", start_date=datetime(2023,1,1), schedule=None, catchup=False, tags=["skeleton"])
+def importdata_dag():
     @task
     def import_data_archive():
         """
         Import data from the archive
         """
-        # pretend to fetch data from an archive
         archive_data = "data"
         return archive_data
 
@@ -18,7 +16,6 @@ def zimportdata_dag():
         """
         Apply online flags to data
         """
-        # Pretend to apply online flags
         return data
 
     @task
@@ -26,7 +23,7 @@ def zimportdata_dag():
         """
         Create and return a caltable for antenna position correction
         """
-        caltable = data + "caltable"
+        caltable = data + "_caltable"
         return caltable
 
     @task
@@ -34,12 +31,13 @@ def zimportdata_dag():
         """
         Apply the caltable to the data
         """
-        return data
+        return f"{data}_with_{caltable}_applied"
 
+    # Create the pipeline
     data = import_data_archive()
     flagged_data = apply_flags(data)
     caltable = antpos_correction(flagged_data)
-    apply_caltable(caltable, flagged_data)
+    final_result = apply_caltable(flagged_data, caltable)
 
-zimportdata_dag()
+importdata_dag()
 print("DAG file parsed.")
