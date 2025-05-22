@@ -14,10 +14,10 @@ from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOpe
 )
 def example_workflow():
 
-    @task
-    def calibrator_data_import_and_prep():
-        time.sleep(1.0)
-        return True
+    calibrator_data = TriggerDagRunOperator(
+        task_id="stage_calibrator_data_import_and_prep",
+        trigger_dag_id="zimportdata"
+        )
 
     bandpass_model_out = TriggerDagRunOperator(
         task_id="stage_bandpass_solve",
@@ -34,10 +34,10 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    @task
-    def target_data_import_and_prep():
-        time.sleep(1.0)
-        return True
+    target_data = TriggerDagRunOperator(
+        task_id="stage_target_data_import_and_prep",
+        trigger_dag_id="zimportdata"
+        )
 
     @task
     def calibrate_target_and_find_continuum():
@@ -59,8 +59,8 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    calibrator_data_import_and_prep() >> bandpass_model_out >> time_gain_solve()
-    [time_gain_solve(), target_data_import_and_prep()] >> calibrate_target_and_find_continuum()
+    calibrator_data >> bandpass_model_out >> time_gain_solve()
+    [time_gain_solve(), target_data] >> calibrate_target_and_find_continuum()
     calibrate_target_and_find_continuum() >> [cube_imaging_out, continuum_imaging_with_selfcal()]
     continuum_imaging_with_selfcal() >> per_spw_continuum_imaging()
     
