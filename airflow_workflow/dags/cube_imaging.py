@@ -8,7 +8,7 @@ def  generate_qa(processname:str):
          return qascore
 
 @dag(
- dag_id="cube_imging",
+ dag_id="cube_imaging",
     schedule=None,
     start_date=datetime(2025,1,1),
     catchup=False,

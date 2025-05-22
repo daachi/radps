@@ -19,8 +19,8 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    model_out = TriggerDagRunOperator(
-        task_id="triggered_bandpass_solve",
+    bandpass_model_out = TriggerDagRunOperator(
+        task_id="stage_bandpass_solve",
         trigger_dag_id="bandpass_solve"
         )
 
@@ -44,10 +44,10 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    @task
-    def cube_imaging():
-        time.sleep(1.0)
-        return True
+    cube_imaging_out = TriggerDagRunOperator(
+        task_id="stage_cube_imaging",
+        trigger_dag_id="cube_imaging"
+        )
 
     @task
     def continuum_imaging_with_selfcal():
@@ -59,9 +59,9 @@ def example_workflow():
         time.sleep(1.0)
         return True
 
-    calibrator_data_import_and_prep() >> model_out >> time_gain_solve()
+    calibrator_data_import_and_prep() >> bandpass_model_out >> time_gain_solve()
     [time_gain_solve(), target_data_import_and_prep()] >> calibrate_target_and_find_continuum()
-    calibrate_target_and_find_continuum() >> [cube_imaging(), continuum_imaging_with_selfcal()]
+    calibrate_target_and_find_continuum() >> [cube_imaging_out, continuum_imaging_with_selfcal()]
     continuum_imaging_with_selfcal() >> per_spw_continuum_imaging()
     
 dag = example_workflow()
