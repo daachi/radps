@@ -1,5 +1,4 @@
 from airflow.decorators import dag, task
-from airflow.operators.python import get_current_context
 from datetime import datetime
 import random
 
@@ -45,12 +44,11 @@ def timegain_dag():
         return {"solution": "combine_spw", "data": data}
 
     @task(trigger_rule="none_failed_min_one_success")
-    def gaincal():
+    def gaincal(**context):
         """
         Do the global gain solution
         """
         # fetch context
-        context = get_current_context()
         task_instance = context['ti']
 
         # fetch results from completed task
