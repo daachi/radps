@@ -1,8 +1,8 @@
-from airflow.sdk import dag, task, task_group
+from airflow.sdk import dag, task
 from airflow.operators.empty import EmptyOperator
 
 from datetime import datetime
-import random
+import random, time
 
 def  generate_qa(processname:str):
          qascore = random.uniform(0.0, 1.0)
@@ -44,6 +44,8 @@ def per_spw_continuum_imaging():
     @task
     def data_prep():
         print("Preparing data for cube_imaging")
+        time.sleep(1.0)
+        return True
 
 
     @task   
@@ -61,6 +63,7 @@ def per_spw_continuum_imaging():
     def apply_selfcal_table(caltable:str):
         """ apply selfcal table"""
         print("Applying selfcal table: {caltable}")
+        time.sleep(1.0)
         return True
 
     join = EmptyOperator(
@@ -74,19 +77,22 @@ def per_spw_continuum_imaging():
             print("No selfcal table to apply")
             return f"join_after_branch"
         else:
+            time.sleep(1.0)
             return f"apply_selfcal_table"
 
 
     @task(task_id='image_target_perspw_cont', trigger_rule='all_done')
     def image_target_perspw_cont_task(spwid):
         print(f"Processing  spw: {spwid} for continuum imaging")
+        time.sleep(1.0)
         return True
 
    
     @task(task_id='finalize_task', trigger_rule='none_failed_min_one_success')
     def finalize_op():
         """ run by all branches at the end of the dag"""
-        print("Final process")
+        print("Finalize process")
+        time.sleep(1.0)
         return True
     
     #chunklist = extract_metadata()['chunkid']\

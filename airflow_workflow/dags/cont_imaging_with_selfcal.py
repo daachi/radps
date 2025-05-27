@@ -1,7 +1,6 @@
 from datetime import datetime
 import random, time
 from airflow.sdk import dag, task, task_group
-from airflow.sdk import Param
 
 
 @dag(
@@ -15,11 +14,13 @@ def cont_imaging_with_selfcal():
     @task()
     def prep_data(data):
         print("Preparing data for selfcal")
+        time.sleep(1.0)
         return data
 
     @task()
     def make_cont_image():
         print("Making aggregated continuum image")
+        time.sleep(1.0)
         return 'cont_image'
 
     @task(task_id="generate_initial_snr")
@@ -27,6 +28,7 @@ def cont_imaging_with_selfcal():
         """ randomly generate SNR"""
         print("Calculate SNR...")
         snr = random.uniform(1.0,100.0)
+        time.sleep(1.0)
         #snr= 1.0
         print(f'=> initial SNR = {snr}')
         return snr
@@ -36,12 +38,13 @@ def cont_imaging_with_selfcal():
     def check_initial_snr(snr: float):
         """Branch based on SNR value"""
         snr_value = snr
+        time.sleep(1.0)
         print(f"SNR value is {snr_value}")
         if snr_value > 4.0:
             print(f"SNR is {snr_value}, proceed with selfcal loop")
             return "selfcal_loop_group_p0"
         else:
-            return "skip_op"
+            return "skip_task"
         
     branch_by_snr = check_initial_snr(generate_initial_snr())
     
@@ -53,7 +56,10 @@ def cont_imaging_with_selfcal():
 
     @task(task_id='finalize_task', trigger_rule='none_failed_min_one_success')
     def finalize_op():
-        print("Do fininalize op")
+        print("Do fininalize process")
+        time.sleep(1.0)
+        return True
+    
 
     
     skip_remaining = skip_op()
@@ -74,16 +80,19 @@ def cont_imaging_with_selfcal():
             @task
             def solve(soltype):
                 print(f"Doing solve for soltype {soltype}")
+                time.sleep(1.0)
                 return f"caltable__{soltype}"
             
             @task
             def applymodel(caltable, data):
                 print(f"Applying calibration model, {caltable} to {data}")
+                time.sleep(1.0)
                 return 'calibrated_data'
             
             @task
             def imaging(data):
                 print(f" Do selfcal imaging for {data}")
+                time.sleep(1.0)
                 return "image"
             
             
@@ -103,6 +112,7 @@ def cont_imaging_with_selfcal():
             print(f"Checking SNR for {image}")
             snr = random.uniform(1.0, 10.0)
             print(f"Calculated SNR: {snr}")
+            time.sleep(1.0)
             if snr > 4.0:
                 print(f"soltype = {soltype}, {selfcal_soltypes[-1]}")
                 if soltype != selfcal_soltypes[-1]:
