@@ -46,7 +46,7 @@ def cont_imaging_with_selfcal():
     branch_by_snr = check_initial_snr(generate_initial_snr())
     
     
-    @task(trigger_rule='none_failed_min_one_success')
+    @task(task_id='skip_task', trigger_rule='none_failed_min_one_success')
     def skip_op():
         print("Skipping selfcal loop")
    
@@ -108,9 +108,9 @@ def cont_imaging_with_selfcal():
                 if soltype != selfcal_soltypes[-1]:
                     return f"selfcal_loop_group_{selfcal_soltypes[selfcal_soltypes.index(soltype) + 1]}.solve"
                 else:
-                    return 'finalize_op'     
+                    return 'finalize_task'     
             else:
-                return 'skip_op'
+                return 'skip_task'
 
         check_image_snr_branch[soltype] = check_image_snr(soltype, imaging_refs[soltype])        
  

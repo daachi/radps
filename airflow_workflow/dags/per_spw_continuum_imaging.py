@@ -83,8 +83,8 @@ def per_spw_continuum_imaging():
         return True
 
    
-    @task(task_id='final_process', trigger_rule='none_failed_min_one_success')
-    def final_process():
+    @task(task_id='finalize_task', trigger_rule='none_failed_min_one_success')
+    def finalize_op():
         """ run by all branches at the end of the dag"""
         print("Final process")
         return True
@@ -104,7 +104,7 @@ def per_spw_continuum_imaging():
     
     mapped_image_target_perspw_cont = image_target_perspw_cont_task.expand(spwid=spwlist)
 
-    join >> mapped_image_target_perspw_cont >> check_qa('target_image') >> final_process()
+    join >> mapped_image_target_perspw_cont >> check_qa('target_image') >> finalize_op()
 
    
     #mapped_image_target_perspw_cont >> check_qa('target_image') >> final_process    

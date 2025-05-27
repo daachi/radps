@@ -87,10 +87,11 @@ def cube_imaging():
             return True
     
         mapped_image_cube = image_target_cube.expand(chan=chanlist)
+    
+    
 
-
-    @task(task_id='final_process', trigger_rule='none_failed_min_one_success')
-    def final_process():
+    @task(task_id='finalize_task', trigger_rule='none_failed_min_one_success')
+    def finalize_op():
         """ run by all branches at the end of the dag"""
         print("Final process")
         return True
@@ -102,12 +103,13 @@ def cube_imaging():
     
     # use override to change the generic task_id to specific task_id 
     post_uvcontsub_branch = check_qa_branch.override(task_id='post_uvcontsub_branch')(process="uvcontsub", next_branch_taskname="image_target_cube")
-    final_process = final_process()
+    finalize_task = finalize_op()
     #image_target_cube_mapped = image_target_cube.expand(chan=chanlist)
     image_target_cube_branch = image_target_cube_group()
-    data_prep() >> meta_data >> spwlist >> post_uvcontsub_branch
-    post_uvcontsub_branch >> image_target_cube_branch >> check_qa('target_image') >> final_process
-    post_uvcontsub_branch >> final_process
+    
+    data_prep() >> meta_data >> spwlist >> uvcontsub.expand(spwid=spwlist)>> post_uvcontsub_branch
+    post_uvcontsub_branch >> image_target_cube_branch >> check_qa('target_image') >> finalize_task
+    post_uvcontsub_branch >> finalize_task
 
 
     #data_prep ()  >> meta_data >> spwlist >> chanlist >>  uvcontsub.expand(spwid=spwlist) >> image_target_cube.expand(chan=chanlist)
