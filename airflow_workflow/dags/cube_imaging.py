@@ -1,6 +1,6 @@
 from airflow.sdk import dag, task, task_group
 from datetime import datetime
-import random
+import random, time
 
 def  generate_qa(processname:str):
          qascore = random.uniform(0.0, 1.0)
@@ -44,11 +44,14 @@ def cube_imaging():
     @task
     def data_prep():
         print("Preparing data for cube_imaging")
+        time.sleep(1.0)
+        return True
 
     
     @task
     def uvcontsub(spwid):
         print(f"Processing UV continuum subtraction for spw: {spwid}")
+        time.sleep(1.0)
         return True
 
 
@@ -61,7 +64,7 @@ def cube_imaging():
             print(f"QA score = {qascore} for {process} PASS")
             return f"{next_branch_taskname}_group"
         else:
-            return "final_process"
+            return "finalize_task"
              
         return qascore
 
@@ -93,7 +96,8 @@ def cube_imaging():
     @task(task_id='finalize_task', trigger_rule='none_failed_min_one_success')
     def finalize_op():
         """ run by all branches at the end of the dag"""
-        print("Final process")
+        print("Run finalize process")
+        time.sleep(1.0)
         return True
     
     #chunklist = extract_metadata()['chunkid']\
