@@ -53,13 +53,13 @@ def time_gain_solve():
         time.sleep(1.0)
         return True
     
-    @task
-    def global_gain_soln(trigger_rule='all_done'):
+    @task(trigger_rule="all_done")
+    def global_gain_soln():
         time.sleep(1.0)
         return True
 
-    @task
-    def make_qa_score(trigger_rule='all_done'):
+    @task(trigger_rule="all_done")
+    def make_qa_score():
         time.sleep(1.0)
         return True
 
