@@ -5,9 +5,9 @@ from datetime import datetime
 import random
 
 
-n_par = 10
+n_par = 5
 n_comb = 3
-niter = 5
+niter = 10
 
 @dag(
  dag_id="solver",
@@ -17,7 +17,8 @@ niter = 5
 )
 def solver_dag():
     """
-    Generic sovlver DAG   
+    Generic sovlver DAG - n_par, n_comb, niter are hardcoded. This can not be fully parametrized due to 
+    some limitations in Airflow 3.0.
 
     solver loop:
     for i in range(npar): # parallel process over npar (Use Executor such as DaskExecutor? to devlopy this DAG???)
@@ -63,15 +64,15 @@ def solver_dag():
         return True 
     
     @task
-    def finilize():
-        """ Finilize """
-        print("Finilize operation")
+    def finalize():
+        """ Finalize """
+        print("Finalize operation")
         return True
     
 
     
     def solve_sequence_group(parid:int, iteration:int):
-        with TaskGroup(group_id=f"{parid}_{iteration}") as tg:
+        with TaskGroup(group_id=f"{parid}_iter{iteration}") as tg:
             subtasks = get_subtask(parid, n_comb)
             update_direction_parallel = update_direction.expand(subtask_name=subtasks)
             update_model_instance = update_model()
@@ -80,7 +81,7 @@ def solver_dag():
         return tg
         
     def iteration_loop(parid:int):
-        with TaskGroup(group_id=f"{parid}_iteration") as tg:
+        with TaskGroup(group_id=f"proc{parid}_iteration") as tg:
             previous = None
             for i in range(niter):
                 group = solve_sequence_group(parid, i)
@@ -93,7 +94,7 @@ def solver_dag():
             'scan': [0,1,2,3,5]}
     
     metadata = data_prep(data)
-    finalize_task = finilize()
+    finalize_task = finalize()
 
 
     for i in range(0, n_par):
