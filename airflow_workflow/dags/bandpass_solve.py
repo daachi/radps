@@ -21,7 +21,7 @@ def bandpass_solve():
         return True
 
     @task
-    def query_calmodel():
+    def query_calmodel(retries=3):
         time.sleep(1.0)
         if random.choice([True, False]):
             raise AirflowException("Simulated query_calmodel failure for testing")
