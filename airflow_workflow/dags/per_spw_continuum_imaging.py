@@ -1,7 +1,7 @@
 from airflow.sdk import dag, task
-from airflow.operators.empty import EmptyOperator
-
-from datetime import datetime
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
+from datetime import datetime, timedelta
 import random, time
 
 def  generate_qa(processname:str):
@@ -24,11 +24,23 @@ def per_spw_continuum_imaging():
     def extract_metadata(nchan=1)->dict:
         """ Extract metadata from the data  """
         fake_metadata = {
-                   'spwid': [0, 1, 2, 3],
-                    'channel': list(range(nchan)),
-                    'selfcal_table': random.choice(['selfcal_table', 'None'])}
+                'field': ['target'],    
+                'spw': [0, 1, 2, 3],
+                'channel': list(range(nchan)),
+                'scan': [0, 1, 2, 3, 4],
+                'selfcal_table': random.choice(['selfcal_table', 'None'])}
         return fake_metadata
 
+    @task
+    def make_conf(metadata:dict):
+        nfield= len(metadata['field'])
+        nspw = len(metadata['spw'])
+        nchan = len(metadata['channel'])
+        nscan = len(metadata['scan'])
+        niter = 5
+        return {'n_par': nfield*nspw,
+                'n_comb': nscan,
+                'niter':niter} 
     # dictionary returned by extract_metadata cannot be directly used
     # in the argument of .expand and refereces the key in the dictionary
     # as it is XCom object
@@ -80,13 +92,23 @@ def per_spw_continuum_imaging():
             time.sleep(1.0)
             return f"apply_selfcal_table"
 
+    dag_conf = make_conf(extract_metadata())
 
-    @task(task_id='image_target_perspw_cont', trigger_rule='all_done')
-    def image_target_perspw_cont_task(spwid):
-        print(f"Processing  spw: {spwid} for continuum imaging")
-        time.sleep(1.0)
-        return True
-
+    #@task(task_id='image_target_perspw_cont', trigger_rule='all_done')
+    #def image_target_perspw_cont_task(spwid):
+    #    print(f"Processing  spw: {spwid} for continuum imaging")
+    #    time.sleep(1.0)
+    #    return True
+    image_target_perspw_cont = TriggerDagRunOperator(
+        task_id='image_target_perspw_cont',
+        trigger_dag_id='solver_new',
+        conf=dag_conf,
+        wait_for_completion=True,
+        poke_interval=30,
+        execution_timeout=timedelta(600),
+        allowed_states=['success'],
+        failed_states=['failed'],
+    )
    
     @task(task_id='finalize_task', trigger_rule='none_failed_min_one_success')
     def finalize_op():
@@ -97,7 +119,7 @@ def per_spw_continuum_imaging():
     
     #chunklist = extract_metadata()['chunkid']\
     meta_data = extract_metadata()
-    spwlist= get_spwlist(meta_data)
+    #spwlist= get_spwlist(meta_data)
     caltable = get_caltable(meta_data)
 
     data_prep() >> meta_data
@@ -108,9 +130,10 @@ def per_spw_continuum_imaging():
     check_selfcal_table_branch >> apply_caltable >> join
     check_selfcal_table_branch >> join
     
-    mapped_image_target_perspw_cont = image_target_perspw_cont_task.expand(spwid=spwlist)
 
-    join >> mapped_image_target_perspw_cont >> check_qa('target_image') >> finalize_op()
+    #mapped_image_target_perspw_cont = image_target_perspw_cont_task.expand(spwid=spwlist)
+
+    join >> image_target_perspw_cont >> check_qa('target_image') >> finalize_op()
 
    
     #mapped_image_target_perspw_cont >> check_qa('target_image') >> final_process    
