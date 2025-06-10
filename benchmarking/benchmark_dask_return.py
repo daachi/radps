@@ -84,7 +84,7 @@ def run_benchmark(list_sleep_times, list_n_tasks, data_size_mb_list, n_processes
        
                 result_dict = organize_benchmark_result(
                     run_id=run_id,
-                    workflow_orchestration_framework="prefect",
+                    workflow_orchestration_framework="dask",
                     workflow_type="tree_combine",
                     n_tasks=n_tasks,
                     t_min_sleep=sleep_times[0],
@@ -108,7 +108,7 @@ def run_benchmark(list_sleep_times, list_n_tasks, data_size_mb_list, n_processes
                 logger.info("Maximum data size: %s MB", timing_results[2].nbytes / (1024**2))
                 logger.info("*"*50)
 
-                return result_dict
+
 
 def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv):
     import dask
@@ -121,6 +121,9 @@ def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max
         n_workers=n_processes,
         threads_per_worker=n_threads_per_process,
     )
+    client = dask_cluster.get_client()
+    print(client)
+    print(dask_cluster.dashboard_link)
     run_benchmark(list_sleep_times, list_n_tasks, data_size_mb_list, n_processes, n_threads_per_process, results_csv)
     dask_cluster.close()
     try:
@@ -136,6 +139,9 @@ def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max
         n_workers=n_processes,
         threads_per_worker=n_threads_per_process,
     )
+    client = dask_cluster.get_client()
+    print(client)
+    print(dask_cluster.dashboard_link)
     run_benchmark(list_sleep_times, list_n_tasks, data_size_mb_list, n_processes, n_threads_per_process, results_csv)
     dask_cluster.close()
     try:
@@ -150,27 +156,30 @@ def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max
 if __name__ == "__main__":
     
     #To make sure that code is working:
-    import os
-    list_sleep_times = [(2.0, 2.0)]
-    max_parallelism = os.cpu_count()
-    list_n_tasks = [max_parallelism* 4]
-    data_size_mb_list = [10] #MB
-    results_csv="results/benchmark_return_results_dask_test.csv"
-    run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
+    # import os
+    # list_sleep_times = [(2.0, 2.0)]
+    # max_parallelism = os.cpu_count()
+    # list_n_tasks = [max_parallelism* 4]
+    # data_size_mb_list = [10] #MB
+    # results_csv="results/benchmark_return_results_dask_test.csv"
+    # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
     
     ##Benchmark 1
+    print("Doing benchmark 1.")
     import os
-    list_sleep_times = [(0.1,1.0)]
+    #list_sleep_times = [(1.0,0.1)]
+    list_sleep_times = [(6.0,4.0)]
     max_parallelism = os.cpu_count()
     list_n_tasks = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
     data_size_mb_list = [0.1] #MB
     results_csv="results/benchmark_return_results.csv"
     run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
 
-    ##Benchmark 2
-    list_sleep_times = list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]
-    list_n_tasks = [max_parallelism*20]
-    data_size_mb_list = [0.1, 1.0, 10.0] #MB
-    results_csv="results/benchmark_return_results.csv"
-    wait_for_maping=True
-    run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
+    # ##Benchmark 2
+    # print("Doing benchmark 2.")
+    # list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]
+    # list_n_tasks = [max_parallelism*20]
+    # data_size_mb_list = [0.1, 1.0, 10.0] #MB
+    # results_csv="results/benchmark_return_results.csv"
+    # wait_for_maping=True
+    # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
