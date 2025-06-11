@@ -275,12 +275,12 @@ def plot_overhead_as_function_of_return_size(csv_file, title, run_ids, labels, s
 if __name__ == "__main__":
 
     #Plot increasing task time
-    plot_overhead_as_function_of_n_tasks("results/benchmark_return_results.csv",title="Effect of Tasks Duration on Overhead",run_ids=["jsteeb_2025-05-07_14-46-13","jsteeb_2025-06-10_05-27-44"],labels=["Avg Sleep 0.55s","Avg Sleep 5s"],save_as="fig1.png")
+    plot_overhead_as_function_of_n_tasks("results/benchmark_return_results.csv",title="Effect of Tasks Duration on Overhead",run_ids=["jsteeb_2025-05-07_14-46-13","jsteeb_2025-06-10_05-27-44"],labels=["Avg Sleep 0.55s","Avg Sleep 5s"],save_as="plots/fig1_task_duration_overhead.png")
     
     #Return Size
-    plot_overhead_as_function_of_return_size("results/benchmark_return_results.csv",title="Effect of Return Size on Overhead",run_ids=["jsteeb_2025-05-17_10-31-01"],labels=[""],save_as="fig2.png")
+    plot_overhead_as_function_of_return_size("results/benchmark_return_results.csv",title="Effect of Return Size on Overhead",run_ids=["jsteeb_2025-05-17_10-31-01"],labels=[""],save_as="plots/fig2_return_size_overhead.png")
 
     #Plot stasks increasing
-    plot_overhead_as_function_of_n_tasks("results/benchmark_return_results.csv",title="Overhead as a Function of the Number of Tasks (T_avg 5s)",run_ids=["jsteeb_2025-06-07_14-06-55","jsteeb_2025-06-06_08-44-43","jsteeb_2025-06-10_05-27-44"],labels=["","",""],save_as="fig3.png")
+    plot_overhead_as_function_of_n_tasks("results/benchmark_return_results.csv",title="Overhead as a Function of the Number of Tasks (T_avg 5s)",run_ids=["jsteeb_2025-06-07_14-06-55","jsteeb_2025-06-06_08-44-43","jsteeb_2025-06-10_05-27-44"],labels=["","",""],save_as="plots/fig3_num_tasks_overhead.png")
     
     
