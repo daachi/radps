@@ -1,7 +1,9 @@
 # RADPS
 Radio Astronomy Data Processing System
 
-## Workflow
+# Prefect workflow 
+
+### Workflow
 
 To run the demo pipeline in a python environment with the dependencies installed, it is required to start a couple of background processes. First, to have a prefect server running:
 
@@ -15,9 +17,9 @@ The pipeline can then be executed using:
 
 `python prefect_workflow/pipeline.py`
 
-## Cluster infrastructure
+### Cluster infrastructure
 
-### Required software:
+#### Required software:
 - docker
 - k3d
 - kubectl
@@ -27,7 +29,7 @@ Executables for these packages need to be installed on each machine that will be
 
 Note: User account performing these installation steps must be a `sudo`er on the machine.
 
-#### Install instructions (mac)
+##### Install instructions (mac)
 Installation of the required packages has been tested using [macports](https://www.macports.org/) on Sonoma 14.7 (Apple M3 Pro). Having this tool installed and pre-configured is a requirement for following the rest of these instructions. It may also be possible to build from source or use alternative installation methods (for instance, homebrew).
 
 The first step is to make sure you have [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) (engine + virtualization for macs) installed and running on your machine. Next,
@@ -40,7 +42,7 @@ sudo port select --set helm helm3.16
 ```
 Make sure the executables are on your PATH, by running the `k3d version`, `kubectl version`, and `helm version` commands.
 
-#### Install instructions (RHEL8)
+##### Install instructions (RHEL8)
 Installation of the required packages has been tested on a RHEL8 workstation inside NRAO-CV. These steps require a package manager configured with standard repositories. Installation of [Docker engine](https://docs.docker.com/engine/install/rhel/) is required, but on linux we can get by with just dockerd (Docker Desktop is not necessary, as with mac installation).
 ```
 sudo yum install docker-ce.x86_64
@@ -58,7 +60,7 @@ tar -xvf helm-v3.17.0-linux-amd64.tar.gz
 helm repo add "stable" "https://charts.helm.sh/stable"
 ```
 
-### Deploying a local Kubernetes cluster:
+#### Deploying a local Kubernetes cluster:
 Using k3d to spin up a cluster is as quick and easy as running a command like this:
 ```
 k3d cluster create --agents 2 --agents-memory=4GB --image=rancher/k3s:v1.31.4-k3s1
@@ -107,3 +109,12 @@ python prefect_workflow/deploy.py &
 # run the example pipeline
 python prefect_workflow/pipeline.py
 ```
+
+## Airflow Workflow
+### Local Development
+1. Set up Airflow. Recommendation: use the [docker-compose](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/pipeline.html) setup described in Airflow tutorial documentation. 
+2. Clone this repo and update the Airflow configuration file `airflow.cfg` to use the `airflow_workflow/dags/` directory in the repo as its `dags_folder`.
+3. Enable a DAG in the Airflow UI, and it will run on the schedule defined in the definition file. Also, optionally re-parse and trigger the the DAG via the command line or UI.
+
+### Demo
+1. On the VPN, navigate to [this URl](https://broken.link) and log in
