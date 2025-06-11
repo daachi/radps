@@ -26,7 +26,7 @@ attrs==25.1.0
     #   jsonschema
     #   referencing
 bokeh==3.6.3
-    # via requirements.in
+    # via -r requirements.in
 cachetools==5.5.1
     # via prefect
 certifi==2025.1.31
@@ -60,21 +60,19 @@ contourpy==1.3.1
     #   matplotlib
 coolname==2.2.0
     # via prefect
-croniter==6.0.0
-    # via prefect
 cryptography==44.0.0
     # via prefect
 cycler==0.12.1
     # via matplotlib
-dask==2025.1.0
+dask==2025.4.1
     # via
-    #   requirements.in
+    #   -r requirements.in
     #   distributed
 dateparser==1.2.0
     # via prefect
 deprecated==1.2.18
     # via opentelemetry-api
-distributed==2025.1.0
+distributed==2025.4.1
     # via prefect-dask
 docker==7.1.0
     # via prefect
@@ -121,7 +119,7 @@ idna==3.10
     #   requests
 importlib-metadata==8.5.0
     # via opentelemetry-api
-jinja2==3.1.5
+jinja2==3.1.6
     # via
     #   bokeh
     #   distributed
@@ -154,14 +152,14 @@ markupsafe==3.0.2
     #   jinja2
     #   mako
 matplotlib==3.10.0
-    # via requirements.in
+    # via -r requirements.in
 mdurl==0.1.2
     # via markdown-it-py
 msgpack==1.1.0
     # via distributed
 numpy==2.2.2
     # via
-    #   requirements.in
+    #   -r requirements.in
     #   bokeh
     #   contourpy
     #   matplotlib
@@ -186,21 +184,19 @@ partd==1.4.2
     # via dask
 pathspec==0.12.1
     # via prefect
-pendulum==3.0.0
-    # via prefect
 pillow==11.1.0
     # via
     #   bokeh
     #   matplotlib
-prefect==3.1.15
+prefect==3.4.0
     # via
-    #   requirements.in
+    #   -r requirements.in
     #   prefect-dask
     #   prefect-sqlalchemy
 prefect-dask==0.3.3
-    # via requirements.in
+    # via -r requirements.in
 prefect-sqlalchemy==0.5.2
-    # via requirements.in
+    # via -r requirements.in
 prometheus-client==0.21.1
     # via prefect
 psutil==7.0.0
@@ -227,13 +223,10 @@ pyparsing==3.2.1
     # via matplotlib
 python-dateutil==2.9.0.post0
     # via
-    #   croniter
     #   dateparser
     #   matplotlib
     #   pandas
-    #   pendulum
     #   prefect
-    #   time-machine
 python-dotenv==1.0.1
     # via pydantic-settings
 python-slugify==8.0.4
@@ -242,7 +235,6 @@ python-socks[asyncio]==2.7.0
     # via prefect
 pytz==2024.2
     # via
-    #   croniter
     #   dateparser
     #   pandas
     #   prefect
@@ -281,7 +273,7 @@ rpds-py==0.22.3
 ruamel-yaml==0.18.10
     # via prefect
 scipy==1.15.1
-    # via requirements.in
+    # via -r requirements.in
 shellingham==1.5.4
     # via typer
 six==1.17.0
@@ -306,8 +298,6 @@ tblib==3.0.0
     # via distributed
 text-unidecode==1.3
     # via python-slugify
-time-machine==2.16.0
-    # via pendulum
 toml==0.10.2
     # via prefect
 toolz==1.0.0
@@ -333,9 +323,7 @@ typing-extensions==4.12.2
     #   sqlalchemy
     #   typer
 tzdata==2025.1
-    # via
-    #   pandas
-    #   pendulum
+    # via pandas
 tzlocal==5.2
     # via dateparser
 ujson==5.10.0
@@ -345,9 +333,13 @@ urllib3==2.3.0
     #   distributed
     #   docker
     #   requests
+uv==0.7.12
+    # via prefect
 uvicorn==0.34.0
     # via prefect
 websockets==13.1
+    # via prefect
+whenever==0.8.5
     # via prefect
 wrapt==1.17.2
     # via deprecated
