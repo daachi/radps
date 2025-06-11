@@ -111,4 +111,10 @@ python prefect_workflow/pipeline.py
 ```
 
 ## Airflow Workflow
-Coming soon! 
+### Local Development
+1. Set up Airflow. Recommendation: use the [docker-compose](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/pipeline.html) setup described in Airflow tutorial documentation. 
+2. Clone this repo and update the Airflow configuration file `airflow.cfg` to use the `airflow_workflow/dags/` directory in the repo as its `dags_folder`.
+3. Enable a DAG in the Airflow UI, and it will run on the schedule defined in the definition file. Also, optionally re-parse and trigger the the DAG via the command line or UI.
+
+### Demo
+1. On the VPN, navigate to [this URl](https://broken.link) and log in
