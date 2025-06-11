@@ -171,15 +171,6 @@ if __name__ == "__main__":
     list_sleep_times = [(6.0,4.0)]
     max_parallelism = os.cpu_count()
     list_n_tasks = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
-    data_size_mb_list = [0.1] #MB
+    data_size_mb_list = [0.1,10.0] #MB
     results_csv="results/benchmark_return_results.csv"
     run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
-
-    # ##Benchmark 2
-    # print("Doing benchmark 2.")
-    # list_sleep_times = [(4.0,2.0),(16.0,4.0),(32.0,8.0),(128.0,32.0),(256.0,64.0),(512.0,128.0)]
-    # list_n_tasks = [max_parallelism*20]
-    # data_size_mb_list = [0.1, 1.0, 10.0] #MB
-    # results_csv="results/benchmark_return_results.csv"
-    # wait_for_maping=True
-    # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, max_parallelism, results_csv)
