@@ -1,6 +1,3 @@
-
-#pip install pympler
-
 if __name__ == "__main__":
     return_dict = {'cleanstate': "cleanstate",
         'cyclefactor': 0.99999,
