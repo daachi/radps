@@ -76,9 +76,9 @@ def run_workflow(num_tasks, min_sleep, max_sleep, data_size_mb):
 
 def run_benchmark(list_sleep_times, list_n_tasks, data_size_mb_list, n_processes, n_threads_per_process, results_csv):
     run_id = generate_run_id()
-    for n_tasks in list_n_tasks:
-        for sleep_times in list_sleep_times:
-            for data_size_mb in data_size_mb_list:
+    for data_size_mb in data_size_mb_list:
+        for n_tasks in list_n_tasks:
+            for sleep_times in list_sleep_times:    
                 # Run the benchmark flow
                 timing_results = run_workflow(n_tasks, sleep_times[0], sleep_times[1], data_size_mb)
        
@@ -167,8 +167,7 @@ if __name__ == "__main__":
     ##Benchmark 1
     print("Doing benchmark 1.")
     import os
-    #list_sleep_times = [(1.0,0.1)]
-    list_sleep_times = [(6.0,4.0)]
+    list_sleep_times = [(1.0,0.1),(6.0,4.0)]
     max_parallelism = os.cpu_count()
     list_n_tasks = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
     data_size_mb_list = [0.1,10.0] #MB

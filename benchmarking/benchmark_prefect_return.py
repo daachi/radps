@@ -103,9 +103,9 @@ def run_tree_benchmark(list_n_tasks, list_sleep_times, data_size_mb_list, task_r
         logger.info("*"*50)
         return result_dict
 
-    for n_tasks in list_n_tasks:
-        for sleep_times in list_sleep_times:
-            for data_size_mb in data_size_mb_list:
+    for data_size_mb in data_size_mb_list:
+        for n_tasks in list_n_tasks:
+            for sleep_times in list_sleep_times:
                 # Run the benchmark flow
                 benchmark_flow(n_tasks, sleep_times[0], sleep_times[1], data_size_mb, wait_for_maping)
 
@@ -187,7 +187,6 @@ if __name__ == "__main__":
     # run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv)
     
     ##Benchmark 1
-    #list_sleep_times = [(1.0,0.1)]
     list_sleep_times = [(1.0,0.1),(6.0,4.0)]
     n_threads_per_process = os.cpu_count()
     list_n_tasks = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000, 128000]
