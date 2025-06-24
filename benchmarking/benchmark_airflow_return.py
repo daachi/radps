@@ -24,6 +24,10 @@ list_n_tasks = [2, 4, 8, 16]
 list_sleep_time = [(2.0,2.0)]
 data_size_mb_list = [1, 10] #MB
 ###############################
+# Note: airflow.cfg  set the global (hard) concurrency limit (default: 32 for paralleism, 
+# 16 for dag_concurrency, 16 for max_active_runs_per_dag). DAG or task level setting cannot
+# exceed these limits.
+
 ## Benchmark #1
 # list_n_tasks =  [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
 # list_sleep_time = [(1.0,0.1), (6.0, 4.0)]
@@ -44,25 +48,32 @@ def sleep_and_generate_data(min_sleep:float, max_sleep:float, data_size_mb:float
     time.sleep(duration)
     #data = np.ones((int(data_size_mb * 1024 * 1024 / 8 ),), dtype=np.float64)
     data = np.ones((int(data_size_mb * 1024 * 1024 / 8),), dtype=np.float64).tolist()  # Simulating a large array of 1 million elements
-    total_time = time.time() - start_time
+    end_time = time.time()
+    total_time = end_time - start_time
     #return data, total_time   
-    return {'total_time':total_time, 'data':data, 'run_id': run_id}      
+    return {'total_time':total_time, 'data':data, 'run_id': run_id, 'start_time': start_time, 'end_time': end_time, 'task_id': task_id}      
 
 
 @task 
-def sum_time_and_data_new(returned_data:dict, t_workflow:float):
+def sum_time_and_data_new(returned_data:dict):
     start = time.time()
     time_sum = sum(r['total_time'] for r in returned_data)
     data_sum = sum(np.array(r['data']) for r in returned_data)
     runid = returned_data[0]['run_id']
-    time_sum += time.time() - start
+    start_times = [r['start_time'] for r in returned_data]
+    end_times = [r['end_time'] for r in returned_data]
+    t_concurrent = max(end_times) - min(start_times)
+    end = time.time()
+    time_sum += end - start
+    t_workflow = t_concurrent + end - start
     sum_results = {'data_sum': data_sum.tolist(), 'time_sum': time_sum, 't_workflow': t_workflow, 'run_id': runid}
+    print(f"Sum of task times: {time_sum:.4f} seconds, t_wokflow: {t_workflow:.4f} seconds, run_id: {runid}")
     return sum_results
 
 
 
     
-@dag(dag_id='test_benchmark_airflow_return',
+@dag(dag_id='benchmark_airflow_return',
      start_date=datetime(2025,1,1),
      schedule=None,
      catchup=False,
@@ -77,14 +88,7 @@ def benchmark_airflow_return():
     db_type = 'sqlite'  
 
 
-    @task
-    def generate_inputs(min_sleep:float, max_sleep:float, data_size_mb:float, n_tasks:int):
-        logging.info("Generating inputs...")
-        return [{'min_sleep':min_sleep, 
-                'max_sleep':max_sleep, 
-                'data_size_mb':data_size_mb, 
-                'task_index':i} for i in range(n_tasks)]
-
+    
     @task
     def organize_and_save_airflow_benchmark_result(results:dict, 
                                           nconcurrency:int,
@@ -111,7 +115,7 @@ def benchmark_airflow_return():
             wait_for_maping = False,
         )
 
-        save_timing_results(result_dict, filename = 'airflow_results.csv' )   
+        save_timing_results(result_dict, filename = 'airflow_benchmark_results.csv' )   
                                 
     prev_group = None
     
@@ -155,7 +159,7 @@ def benchmark_airflow_return():
                             return sleep_and_generate_data(**task_params)
 
 
-                        start_time = time.time()
+
                         task_params_list = create_concurrent_task_parameters(nconcurrency, 
                                                                             min_sleep=min_sleep_val, 
                                                                             max_sleep=max_sleep_val, 
@@ -163,16 +167,14 @@ def benchmark_airflow_return():
                                                                             prev_result=prev_dependency)
                         
                         run_results = run_concurrent_tasks.expand(task_params=task_params_list)
-                        end_time = time.time()
-                        t_workflow = end_time - start_time
-                        print(f"Workflow time for {datasize}mb {nconcurrency} tasks, (tmin,tmax)=({max_sleep_val}, {min_sleep_val}): {t_workflow:.4f} seconds")
-
+                        
+        
                         sum_results = sum_time_and_data_new.override(
                             task_id=f'sum_time_and_data_{nconcurrency}')(
-                            returned_data=run_results, t_workflow = t_workflow)
+                            returned_data=run_results)
 
-            
-                    
+
+                        
                         return sum_results
 
                     return create_concurrent_run_taskgroup()
