@@ -117,15 +117,17 @@ python prefect_workflow/pipeline.py
 3. Enable a DAG in the Airflow UI, and it will run on the schedule defined in the definition file. Also, optionally re-parse and trigger the the DAG via the command line or UI.
 
 ### Deployment
-Installing a basic Airflow deployment onto a Kubernetes cluster is slightly more complicated than the Prefect process, because we have not yet stabilized our configurations to reference a specfic tag of the public helm charts. (This is work in progress, we will likely peg to (1.17)[https://airflow.apache.org/docs/helm-chart/stable/release_notes.html#airflow-helm-chart-1-17-0-2025-06-21], which is the first public release of the official helm chart compatible with Airflow 3 -- the major version which our workflow was implemented against).
+Installing a basic Airflow deployment onto a Kubernetes cluster is slightly more complicated than the Prefect process, because we have not yet stabilized our configurations to reference a specfic tag of the public helm charts. (This is work in progress, we will likely peg to [1.17(https://airflow.apache.org/docs/helm-chart/stable/release_notes.html#airflow-helm-chart-1-17-0-2025-06-21), which is the first public release of the official helm chart compatible with Airflow 3 -- the major version which our workflow was implemented against).
 
 Rather than adding the helm repo and then installing a chart release following [the documentation](https://airflow.apache.org/docs/helm-chart/stable/index.html#installing-the-chart), for now clone the airflow repo from source:
 ```
 # assuming you are in the top level of a clone of the RADPS repo
 git clone https://github.com/apache/airflow.git airflow
+
 # isolate our activity to a specific context
 kubectl create namespace my-airflow-deployment-namespace
 kubectl config set-context --current --namespace my-airflow-deployment-namespace
+
 # install the chart using the values.yaml shipped with the main branch of airflow,
 # overriding certain settings with those tracked by the chart configs in repository
 helm upgrade --install  my-airflow-deployment ./airflow/chart/ -f ./charts/airflow/values.yaml
@@ -143,3 +145,4 @@ Now it should be possible to access the Airflow web service from the UI_PORT at 
 kubectl exec --stdin --tty  $UI_PODNAME -- /bin/bash
 cat simple_auth_manager_passwords.json.generated
 ```
+The airflow.cfg is similarly accessible from the working directory of each pod.
