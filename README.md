@@ -77,20 +77,20 @@ kubectl describe pods
 Installing a basic Dask deployment onto this local Kubernetes cluster can be accomplished using helm to pull down the chart published by dask, and applying some configuration changes using the YAML files stored in the charts area of this repository:
 ```
 helm repo add dask https://helm.dask.org/
-helm install dask dask/dask -f charts/dask-values.yaml
+helm install dask dask/dask -f charts/prefect/dask-values.yaml
 ```
 This creates Pods containing a basic Dask deployment: a scheduler, its dashboard, and some workers, all communicating with each other over TCP. Since this deployment is running inside of the containers spawned by k3d, it's convenient to forward outside the k3d cluster the ports at which the scheduler and its dashboard UI services are exposed. The commands to do this are conveniently reported by helm when the chart installs, but you can see them again by running `helm status dask`:
 ```
 kubectl port-forward --namespace default svc/dask-scheduler $DASK_SCHEDULER_PORT:8786 &
 kubectl port-forward --namespace default svc/dask-scheduler $DASK_SCHEDULER_UI_PORT:80 &
 ```
-Now the scheduler UI can be opened in a browser window (with the current settings in charts/dask-values, the address will be http://localhost:$DASK_SCHEDULER_UI_PORT) without having to tunnel onto the k3d cluster.
+Now the scheduler UI can be opened in a browser window (with the current settings in charts/prefect/dask-values.yaml, the address will be http://localhost:$DASK_SCHEDULER_UI_PORT) without having to tunnel onto the k3d cluster.
 
 Installing a basic Prefect deployment onto this local Kubernetes cluster is similarly straightforward using helm:
 ```
 helm repo add prefect https://prefecthq.github.io/prefect-helm
 helm install prefect-server prefect/prefect-server
-helm install prefect-worker prefect/prefect-worker -f charts/worker-manifest.yaml
+helm install prefect-worker prefect/prefect-worker -f charts/prefect/worker-manifest.yaml
 ```
 
 Exposing dashboard UI on the default port from a localized k8s cluster::
