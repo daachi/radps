@@ -1,0 +1,17 @@
+dags:
+  persistence:
+    enabled: false
+
+  gitSync:
+    enabled: true
+    repo: https://github.com/casangi/RADPS.git
+    branch: main
+    subPath: airflow_workflow/dags/
+
+config:
+  core:
+    auth_manager: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+    simple_auth_manager_users: "admin:admin,tester:op"
+
+  api:
+    expose_config: non-sensitive-only

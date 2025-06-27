@@ -116,5 +116,30 @@ python prefect_workflow/pipeline.py
 2. Clone this repo and update the Airflow configuration file `airflow.cfg` to use the `airflow_workflow/dags/` directory in the repo as its `dags_folder`.
 3. Enable a DAG in the Airflow UI, and it will run on the schedule defined in the definition file. Also, optionally re-parse and trigger the the DAG via the command line or UI.
 
-### Demo
-1. On the VPN, navigate to [this URl](https://broken.link) and log in
+### Deployment
+Installing a basic Airflow deployment onto a Kubernetes cluster is slightly more complicated than the Prefect process, because we have not yet stabilized our configurations to reference a specfic tag of the public helm charts. (This is work in progress, we will likely peg to (1.17)[https://airflow.apache.org/docs/helm-chart/stable/release_notes.html#airflow-helm-chart-1-17-0-2025-06-21], which is the first public release of the official helm chart compatible with Airflow 3 -- the major version which our workflow was implemented against).
+
+Rather than adding the helm repo and then installing a chart release following [the documentation](https://airflow.apache.org/docs/helm-chart/stable/index.html#installing-the-chart), for now clone the airflow repo from source:
+```
+# assuming you are in the top level of a clone of the RADPS repo
+git clone https://github.com/apache/airflow.git airflow
+# isolate our activity to a specific context
+kubectl create namespace my-airflow-deployment-namespace
+kubectl config set-context --current --namespace my-airflow-deployment-namespace
+# install the chart using the values.yaml shipped with the main branch of airflow,
+# overriding certain settings with those tracked by the chart configs in repository
+helm upgrade --install  my-airflow-deployment ./airflow/chart/ -f ./charts/airflow/values.yaml
+```
+After a while the components of the airflow deployment should finish initializing on the Kubernetes cluster. If you want to see more progress output, you can add the `--debug` flag to the helm install command. There are some open issues related to user creation and other Airflow 2 -> 3 configuration changes (see wiki for details) so it may be necessary to wait for the `my-airflow-deployment-create-user` pod to get out of a CrashLoopBackoff state, which could take a few minutes.
+
+Once the deployment is stable (verified by inspection, e.g., via `kubectl get pods` and `helm status my-airflow-deployment`), the next step is to enable ingress by setting up a load balancer. (Technically this can be done beforehand too, as these services are isolated from one another, but it helps to make sure we have a working deployment before trying to access it.) By default the pods comprising the Airflow deployment are appended with UUIDs, so the actual pod names will be unique to your deployment, and the port to which you map the internal service is of course configurable, although the internal target should remain same.
+```
+UI_PODNAME=$(kubectl get pods | grep api-server | cut --fields 1 --delimiter " ")
+UI_PORT=8383
+kubectl expose deployment $UI_PODNAME --port $UI_PORT --target-port 8080 --name=airflow-load-balancer --type=LoadBalancer
+```
+Now it should be possible to access the Airflow web service from the UI_PORT at one of the external IP addresses listed by `kubectl get svc airflow-load-balancer`, using the credentials accessed from the pod running the API server:
+```
+kubectl exec --stdin --tty  $UI_PODNAME -- /bin/bash
+cat simple_auth_manager_passwords.json.generated
+```
