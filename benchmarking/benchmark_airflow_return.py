@@ -7,22 +7,17 @@ import sys
 import os
 
 from airflow.sdk import dag, task, task_group
-from airflow import settings
-
-from sqlalchemy.engine import Engine
-from sqlalchemy.engine.url import make_url
+from airflow.operators.python import get_current_context
         
-
-
-
+# Assuming benchmark_utils.py in the dags directory
 from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
 
 
 
 # for quick code check 
-list_n_tasks = [2, 4, 8, 16] 
+list_n_tasks = [2, 4, 8, 16, 32]
 list_sleep_time = [(2.0,2.0)]
-data_size_mb_list = [1, 10] #MB
+data_size_mb_list = [0.1, 10] #MB
 ###############################
 # Note: airflow.cfg  set the global (hard) concurrency limit (default: 32 for paralleism, 
 # 16 for dag_concurrency, 16 for max_active_runs_per_dag). DAG or task level setting cannot
@@ -55,7 +50,7 @@ def sleep_and_generate_data(min_sleep:float, max_sleep:float, data_size_mb:float
 
 
 @task 
-def sum_time_and_data_new(returned_data:dict):
+def sum_time_and_data(returned_data:dict):
     start = time.time()
     time_sum = sum(r['total_time'] for r in returned_data)
     data_sum = sum(np.array(r['data']) for r in returned_data)
@@ -71,7 +66,11 @@ def sum_time_and_data_new(returned_data:dict):
     return sum_results
 
 
-
+@task
+def get_run_id():
+    """ Get DAG run id """
+    context = get_current_context()
+    return context['run_id']
     
 @dag(dag_id='benchmark_airflow_return',
      start_date=datetime(2025,1,1),
@@ -83,14 +82,17 @@ def benchmark_airflow_return():
 
     # this gives an DAG parse time error  ..... so hardcode it for now
     # get databbase info (must be done at DAG parse time)
+    #from airflow import settings
+    #from sqlalchemy.engine.url import make_url 
     #db_url = settings.SQL_ALCHEMY_CONN
     #db_type = make_url(db_url).drivername
     db_type = 'sqlite'  
 
 
-    
+    runid = get_run_id() 
     @task
     def organize_and_save_airflow_benchmark_result(results:dict, 
+                                          runid : str,
                                           nconcurrency:int,
                                           min_sleep_val:float,
                                           max_sleep_val:float,
@@ -99,8 +101,13 @@ def benchmark_airflow_return():
                                           datasize:float,
                                           ):
         
+        # modify DAG run id
+        runidtime = runid.split('manual__') [1]
+        modtime = datetime.fromisoformat(runidtime).strftime("%Y-%m-%d_%H-%M-%S")
+        runid = os.getlogin() + '_' + modtime
+          # replace decimal with 'p' to avoid issues in group_id
         result_dict = organize_benchmark_result(
-            run_id = results['run_id'],
+            run_id = runid,
             workflow_orchestration_framework = 'airflow',
             workflow_type = 'tree_combine',
             n_tasks = nconcurrency,
@@ -116,11 +123,18 @@ def benchmark_airflow_return():
         )
 
         save_timing_results(result_dict, filename = 'airflow_benchmark_results.csv' )   
-                                
+
+        data_sum_arr = np.array(results["data_sum"])
+        logger.info("t_workflow: %s" , results['t_workflow'])
+        logger.info("Average t_sum_task_times per unit of parallelism: %s", results['time_sum']/n_threads_per_process) 
+        logger.info("overhead percentage: %s", result_dict["overhead_percentage"])
+        logger.info("overhead per task seconds: %s", result_dict["overhead_per_task_seconds"])
+        logger.info("Data size per task: %s MB", datasize)
+        logger.info("Maximum data size: %s MB", data_sum_arr.nbytes / (1024**2))         
+        logger.info("*"*50)                        
     prev_group = None
     
     for datasize in data_size_mb_list:
-
         for nconcurrency in list_n_tasks:
 
             for max_sleep_val, min_sleep_val in list_sleep_time:
@@ -129,20 +143,24 @@ def benchmark_airflow_return():
                     """
                     Create a task group that runs concurrently with the specified number of tasks.
                     """
+                    # When decimal is in group id Airflow complains as it is not alphanumeric 
                     tmin = int(min_sleep_val)
-                    @task_group(group_id=f'{datasize}mb_tmin{tmin}_concurrent_run_{nconcurrency}')
+                    # input return data size is in MB
+                    if isinstance(datasize, float):
+                        datasize_str = str(datasize).replace('.', 'p')  # replace decimal with 'p' to avoid issues in group_id
+                    else:
+                        datasize_str = str(datasize)    
+                    @task_group(group_id=f'{datasize_str}mb_tmin{tmin}_concurrent_run_{nconcurrency}')
                     def create_concurrent_run_taskgroup():
 
                         @task(task_id=f'create_concurrent_ntasks_{nconcurrency}')
-                        #def create_concurrent_task_parameters(nconcurrency, min_sleep, max_sleep, data_size_mb):
                         def create_concurrent_task_parameters(nconcurrency, min_sleep, max_sleep, data_size_mb, prev_result):
 
                             """Create parameters for concurrent tasks """
                             
                             task_params = []
-                            runid = generate_run_id()
+
                             for i in range(nconcurrency):
-                                #task_params.append({'min_sleep': min_sleep, 'max_sleep': max_sleep, 'data_size_mb':data_size_mb, 'task_id': f'{nconcurrency}tasks_{i}'})
                                 task_params.append({'min_sleep': min_sleep, 
                                                     'max_sleep': max_sleep, 
                                                     'data_size_mb':data_size_mb, 
@@ -169,7 +187,7 @@ def benchmark_airflow_return():
                         run_results = run_concurrent_tasks.expand(task_params=task_params_list)
                         
         
-                        sum_results = sum_time_and_data_new.override(
+                        sum_results = sum_time_and_data.override(
                             task_id=f'sum_time_and_data_{nconcurrency}')(
                             returned_data=run_results)
 
@@ -189,6 +207,7 @@ def benchmark_airflow_return():
                 
                 organize_and_save_airflow_benchmark_result.override(task_id=f'save_results_{datasize}mb_tmin{min_sleep_val}_{nconcurrency}tasks'
                                                                     )(results = group_results,
+                                            runid = runid,
                                             nconcurrency = nconcurrency,
                                             min_sleep_val = min_sleep_val,
                                             max_sleep_val = max_sleep_val,
@@ -197,7 +216,7 @@ def benchmark_airflow_return():
                                             datasize = datasize
                                             )
         
-    
+                
                 prev_group = group_results
 
 
