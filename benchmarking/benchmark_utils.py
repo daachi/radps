@@ -91,17 +91,18 @@ def get_database_type(workflow_orchestration_framework):
         
         logger.debug("Prefect database connection URL: %s", db_url)
         return db_type
-    elif workflow_orchestration_framework == "airflow":
+    elif "airflow" in workflow_orchestration_framework:
         #No idea if this code works. Copolit suggested it.
-        from airflow import settings
-        from sqlalchemy.engine import Engine
-        from sqlalchemy.engine.url import make_url
+        #from airflow import settings
+        #from sqlalchemy.engine import Engine
+        #from sqlalchemy.engine.url import make_url
         
-        db_url = settings.SQL_ALCHEMY_CONN
-        db_type = make_url(db_url).drivername
+        #db_url = settings.SQL_ALCHEMY_CONN
+        #db_type = make_url(db_url).drivername
+        db_type = workflow_orchestration_framework.split("_")[-1]
         
-        logger = logging.getLogger("RADPS")
-        logger.debug("Airflow database connection URL: %s", db_url)
+        #logger = logging.getLogger("RADPS")
+        #logger.debug("Airflow database connection URL: %s", db_url)
         
         return db_type
     elif workflow_orchestration_framework == "dask":
