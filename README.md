@@ -135,6 +135,8 @@ After a while the components of the airflow deployment should finish initializin
 Once the deployment is stable (verified by inspection, e.g., via `kubectl get pods` and `helm status my-airflow-deployment`), the next step is to enable ingress by setting up a load balancer. (Technically this can be done beforehand too, as these services are isolated from one another, but it helps to make sure we have a working deployment before trying to access it.) By default the pods comprising the Airflow deployment are appended with UUIDs, so the actual pod names will be unique to your deployment, and the port to which you map the internal service is of course configurable, although the internal target should remain same.
 ```
 UI_NAME=$(kubectl get deployments | grep api-server | cut --fields 1 --delimiter " ")
+# check port availablity
+kubectl get svc --all-nameservices
 UI_PORT=8383 # this must be a port not already in use by another service, or the load balancer will get stuck in "Pending"
 kubectl expose deployment $UI_NAME --port $UI_PORT --target-port 8080 --name=airflow-load-balancer --type=LoadBalancer
 ```
