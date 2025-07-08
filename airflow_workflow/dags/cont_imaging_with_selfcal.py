@@ -2,6 +2,7 @@ from datetime import datetime
 import random, time
 from airflow.sdk import dag, task, task_group
 
+from pipeline_context import load_pipeline_context, save_pipeline_context
 
 @dag(
     dag_id="cont_imaging_with_selfcal",
@@ -143,10 +144,9 @@ def cont_imaging_with_selfcal():
     
         branch >> skip_remaining
 
-    skip_remaining >> finalize_op()
+    skip_remaining >> finalize_op() >> save_pipeline_context("cont_imaging_with_selfcal")
 
 
 cont_imaging_with_selfcal()
 
 
-    

@@ -4,6 +4,8 @@ from airflow.models import Variable
 from datetime import datetime, timedelta
 import random, time
 
+from pipeline_context import load_pipeline_context, save_pipeline_context
+
 def  generate_qa(processname:str):
          qascore = random.uniform(0.0, 1.0)
          print(f"QA score for {processname} is {qascore}")
@@ -130,10 +132,10 @@ def cube_imaging():
     finalize_task = finalize_op()
     image_target_cube_branch = image_target_cube
 
-    
-    data_prep() >> meta_data >> spwlist >> uvcontsub.expand(spwid=spwlist)>> post_uvcontsub_branch
+    pipeline_context = load_pipeline_context()
+    pipeline_context >> data_prep() >> meta_data >> spwlist >> uvcontsub.expand(spwid=spwlist)>> post_uvcontsub_branch
     post_uvcontsub_branch >> image_target_cube_branch >> check_qa('target_image') >> finalize_task
-    post_uvcontsub_branch >> finalize_task
+    post_uvcontsub_branch >> finalize_task >> save_pipeline_context("cube_imaging")
 
 
 cube_imaging()

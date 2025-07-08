@@ -2,6 +2,7 @@ from airflow.sdk import dag, task
 from datetime import datetime
 import time
 
+from pipeline_context import load_pipeline_context, save_pipeline_context
 
 @dag(
  dag_id="calibrate_target_and_find_continuum",
@@ -40,7 +41,8 @@ def calibrate_target_and_find_continuum():
         time.sleep(1.0)
         return "continuum_image"
 
-    flag_target_data() >> apply_caltables() >> make_qa_score() >> make_dirty_image() >> find_continuum()
+    pipeline_context = load_pipeline_context()
+    pipeline_context >> flag_target_data() >> apply_caltables() >> make_qa_score() >> make_dirty_image() >> find_continuum() >> save_pipeline_context("calibrate_target_and_find_continuum")
 
 
 calibrate_target_and_find_continuum()

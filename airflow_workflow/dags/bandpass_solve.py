@@ -7,6 +7,8 @@ import time
 from airflow.exceptions import AirflowException
 from airflow.sdk import dag, task
 
+from pipeline_context import load_pipeline_context, save_pipeline_context
+
 
 @dag(
     dag_id="bandpass_solve",
@@ -62,16 +64,18 @@ def bandpass_solve():
         # runs if query calmodel() fails
         logging.info("Pretending to use a backup model since the query failed")
 
+    pipeline_context = load_pipeline_context()
     autoflag_task = autoflag_bandpass_calc_src()
     query_task = query_calmodel()
     save_model_vis_task = predict_and_save_model_visibilities()
     backup_model_task = use_backup_model()
     phase_soln_task = phase_only_solution_per_time()
     amp_and_phase_soln_task = amp_and_phase_solution_across_scans()
+    save_context = save_pipeline_context("bandpass_solve")
 
-    autoflag_task >> query_task
+    pipeline_context >> autoflag_task >> query_task
     query_task >> [save_model_vis_task, backup_model_task]
     backup_model_task >> save_model_vis_task
-    save_model_vis_task >> phase_soln_task >> amp_and_phase_soln_task
+    save_model_vis_task >> phase_soln_task >> amp_and_phase_soln_task >> save_context
 
 dag = bandpass_solve()

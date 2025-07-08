@@ -6,6 +6,9 @@ import random
 from airflow.sdk import dag, task
 from airflow.models.taskinstance import TaskInstance
 
+from pipeline_context import load_pipeline_context, save_pipeline_context
+
+
 @dag(
     dag_id="time_gain_solve",
     schedule="0 0 * * *",
@@ -63,6 +66,7 @@ def time_gain_solve():
         time.sleep(1.0)
         return True
 
-    query_calmodel() >> SNR_heuristic() >> [context_specific_gain_soln(), per_spw_gain_soln(), best_spw_gain_soln(), combine_spw_gain_soln()] >> global_gain_soln() >> make_qa_score()
-    
+    pipeline_context = load_pipeline_context()
+    pipeline_context >> query_calmodel() >> SNR_heuristic() >> [context_specific_gain_soln(), per_spw_gain_soln(), best_spw_gain_soln(), combine_spw_gain_soln()] >> global_gain_soln() >> make_qa_score() >> save_pipeline_context("time_gain_solve")
+
 dag = time_gain_solve()

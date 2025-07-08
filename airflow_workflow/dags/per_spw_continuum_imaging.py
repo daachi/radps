@@ -4,6 +4,8 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from datetime import datetime, timedelta
 import random, time
 
+from pipeline_context import load_pipeline_context, save_pipeline_context
+
 def  generate_qa(processname:str):
          qascore = random.uniform(0.0, 1.0)
          print(f"QA score for {processname} is {qascore}")
@@ -133,7 +135,7 @@ def per_spw_continuum_imaging():
 
     #mapped_image_target_perspw_cont = image_target_perspw_cont_task.expand(spwid=spwlist)
 
-    join >> image_target_perspw_cont >> check_qa('target_image') >> finalize_op()
+    join >> image_target_perspw_cont >> check_qa('target_image') >> finalize_op() >> save_pipeline_context("per_spw_continuum_imaging")
 
    
     #mapped_image_target_perspw_cont >> check_qa('target_image') >> final_process    
