@@ -45,7 +45,7 @@ def organize_benchmark_result(run_id, workflow_orchestration_framework, workflow
             "run_id": run_id,
             "workflow_orchestration_framework": workflow_orchestration_framework,
             "date_and_time": datetime.now().isoformat(),
-            "developer": os.getlogin(),
+            "developer": "jsteeb", #os.getlogin(),
             "system_name": platform.node(),
             "n_tasks": n_tasks,
             "t_min_sleep": t_min_sleep,
