@@ -78,11 +78,11 @@ def sum_time_and_data(returned_data:dict):
     return sum_results
 
 
-@task
-def get_run_id():
-    """ Get DAG run id """
-    context = get_current_context()
-    return context['run_id']
+# @task
+# def get_run_id():
+#     """ Get DAG run id """
+#     context = get_current_context()
+#     return context['run_id']
     
 @dag(dag_id='benchmark_airflow_return_v2',
      start_date=datetime(2025,1,1),
