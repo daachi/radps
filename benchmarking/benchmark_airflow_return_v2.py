@@ -101,7 +101,7 @@ def benchmark_airflow_return_v2():
     db_type = 'postgress'  
 
 
-    runid = get_run_id() 
+    runid = "jsteeb_k3s_test"#get_run_id() 
     @task
     def organize_and_save_airflow_benchmark_result(results:dict, 
                                           runid : str,
@@ -116,7 +116,7 @@ def benchmark_airflow_return_v2():
         # modify DAG run id
         runidtime = runid.split('manual__') [1]
         modtime = datetime.fromisoformat(runidtime).strftime("%Y-%m-%d_%H-%M-%S")
-        runid = os.getlogin() + '_' + modtime
+        #runid = os.getlogin() + '_' + modtime
           # replace decimal with 'p' to avoid issues in group_id
         result_dict = organize_benchmark_result(
             run_id = runid,
