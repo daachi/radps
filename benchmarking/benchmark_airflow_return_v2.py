@@ -78,11 +78,11 @@ def sum_time_and_data(returned_data:dict):
     return sum_results
 
 
-# @task
-# def get_run_id():
-#     """ Get DAG run id """
-#     context = get_current_context()
-#     return context['run_id']
+@task
+def get_run_id():
+    """ Get DAG run id """
+    context = get_current_context()
+    return context['run_id']
     
 @dag(dag_id='benchmark_airflow_return_v2',
      start_date=datetime(2025,1,1),
@@ -101,7 +101,7 @@ def benchmark_airflow_return_v2():
     db_type = 'postgress'  
 
 
-    runid = "jsteeb_k3s_test"#get_run_id() 
+    runid = get_run_id() 
     @task
     def organize_and_save_airflow_benchmark_result(results:dict, 
                                           runid : str,
@@ -117,6 +117,7 @@ def benchmark_airflow_return_v2():
         runidtime = runid.split('manual__') [1]
         modtime = datetime.fromisoformat(runidtime).strftime("%Y-%m-%d_%H-%M-%S")
         #runid = os.getlogin() + '_' + modtime
+        runid = "jsteeb" + '_' + modtime
           # replace decimal with 'p' to avoid issues in group_id
         result_dict = organize_benchmark_result(
             run_id = runid,
