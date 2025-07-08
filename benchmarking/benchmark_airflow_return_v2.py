@@ -38,7 +38,7 @@ from benchmark_utils import organize_benchmark_result, generate_run_id, save_tim
 # list_sleep_time = [(6.0, 4.0)]
 # data_size_mb_list = [0.1]
 
-list_n_tasks =  [1000]
+list_n_tasks =  [2000]
 list_sleep_time = [(6.0, 4.0)]
 data_size_mb_list = [0.01]
 
