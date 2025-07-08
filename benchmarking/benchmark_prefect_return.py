@@ -110,19 +110,6 @@ def run_tree_benchmark(list_n_tasks, list_sleep_times, data_size_mb_list, task_r
                 benchmark_flow(n_tasks, sleep_times[0], sleep_times[1], data_size_mb, wait_for_maping)
 
 def run_set_of_benchmarks(list_sleep_times, list_n_tasks, data_size_mb_list, n_threads_per_process, wait_for_maping, results_csv):
-    # logger.info("Running with ThreadPoolTaskRunner")
-    # run_tree_benchmark(
-    #     list_n_tasks=list_n_tasks,
-    #     list_sleep_times=list_sleep_times,
-    #     data_size_mb_list=data_size_mb_list,
-    #     task_runner=ThreadPoolTaskRunner(max_workers=n_threads_per_process),
-    #     runner_name="ThreadPoolTaskRunner",
-    #     n_threads_per_process=n_threads_per_process,
-    #     n_processes=1,
-    #     wait_for_maping=wait_for_maping,
-    #     results_csv=results_csv,
-    # )
-
     import dask
     import dask.distributed
     setup_dask()

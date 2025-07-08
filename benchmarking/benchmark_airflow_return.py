@@ -10,14 +10,20 @@ from airflow.sdk import dag, task, task_group
 from airflow.operators.python import get_current_context
         
 # Assuming benchmark_utils.py in the dags directory
+sys.path.insert(0, os.path.dirname(__file__))
 from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
 
 
 
 # for quick code check 
-list_n_tasks = [2, 4, 8, 16, 32]
-list_sleep_time = [(2.0,2.0)]
-data_size_mb_list = [0.1, 10] #MB
+# list_n_tasks = [2, 4, 8, 16, 32]
+# list_sleep_time = [(2.0,2.0)]
+# data_size_mb_list = [0.1, 10] #MB
+
+# list_n_tasks = [100]
+# list_sleep_time = [(2.0,2.0)]
+# data_size_mb_list = [0.01] #MB
+
 ###############################
 # Note: airflow.cfg  set the global (hard) concurrency limit (default: 32 for paralleism, 
 # 16 for dag_concurrency, 16 for max_active_runs_per_dag). DAG or task level setting cannot
@@ -28,7 +34,13 @@ data_size_mb_list = [0.1, 10] #MB
 # list_sleep_time = [(1.0,0.1), (6.0, 4.0)]
 # data_size_mb_list = [0.1 10]
 
+# list_n_tasks =  [128000]
+# list_sleep_time = [(6.0, 4.0)]
+# data_size_mb_list = [0.1]
 
+list_n_tasks =  [2000]
+list_sleep_time = [(6.0, 4.0)]
+data_size_mb_list = [0.1]
 
 logging.getLogger("airflow").setLevel(logging.WARNING)
 logger = logging.getLogger("RADPS")
@@ -86,7 +98,7 @@ def benchmark_airflow_return():
     #from sqlalchemy.engine.url import make_url 
     #db_url = settings.SQL_ALCHEMY_CONN
     #db_type = make_url(db_url).drivername
-    db_type = 'sqlite'  
+    db_type = 'postgress'  
 
 
     runid = get_run_id() 
@@ -122,7 +134,7 @@ def benchmark_airflow_return():
             wait_for_maping = False,
         )
 
-        save_timing_results(result_dict, filename = 'airflow_benchmark_results.csv' )   
+        save_timing_results(result_dict, filename = '/users/jsteeb/RADPS/benchmarking/airflow_benchmark_results.csv' )   
 
         data_sum_arr = np.array(results["data_sum"])
         logger.info("t_workflow: %s" , results['t_workflow'])

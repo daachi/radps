@@ -43,7 +43,7 @@ list_sleep_time = [(6.0, 4.0)]
 data_size_mb_list = [0.01]
 
 logging.getLogger("airflow").setLevel(logging.WARNING)
-logger = logging.getLogger("RADPS")
+logger = logging.getLogger("airflow.task")
 logger.setLevel(logging.INFO)
 
 #def sleep_and_generate_data(min_sleep:float, max_sleep:float, data_size_mb:float, task_id:int):
@@ -134,7 +134,8 @@ def benchmark_airflow_return_v2():
             wait_for_maping = False,
         )
 
-        save_timing_results(result_dict, filename = '~/airflow_benchmark_results.csv' )   
+        #save_timing_results(result_dict, filename = '~/airflow_benchmark_results.csv' )   
+        logger = logging.getLogger("airflow.task")
 
         data_sum_arr = np.array(results["data_sum"])
         logger.info("t_workflow: %s" , results['t_workflow'])
