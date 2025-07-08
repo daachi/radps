@@ -135,7 +135,7 @@ def benchmark_airflow_return_v2():
             wait_for_maping = False,
         )
 
-        #save_timing_results(result_dict, filename = '~/airflow_benchmark_results.csv' )   
+        save_timing_results(result_dict, filename = '~/airflow_benchmark_results.csv' )   
         logger = logging.getLogger("airflow.task")
 
         data_sum_arr = np.array(results["data_sum"])
