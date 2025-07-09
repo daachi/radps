@@ -1,10 +1,7 @@
 # RADPS
 Radio Astronomy Data Processing System
 
-# Prefect workflow 
-
-### Workflow
-
+## Prefect workflow 
 To run the demo pipeline in a python environment with the dependencies installed, it is required to start a couple of background processes. First, to have a prefect server running:
 
 `prefect server start &`
@@ -17,9 +14,13 @@ The pipeline can then be executed using:
 
 `python prefect_workflow/pipeline.py`
 
-### Cluster infrastructure
+## Airflow Workflow
+1. Set up Airflow. Recommendation: use the [docker-compose](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/pipeline.html) setup described in Airflow tutorial documentation. 
+2. Clone this repo and update the Airflow configuration file `airflow.cfg` to use the `airflow_workflow/dags/` directory in the repo as its `dags_folder`.
+3. Enable a DAG in the Airflow UI, and it will run on the schedule defined in the definition file. Also, optionally re-parse and trigger the the DAG via the command line or UI.
 
-#### Required software:
+## Cluster infrastructure
+### Required software:
 - docker
 - k3d
 - kubectl
@@ -29,7 +30,7 @@ Executables for these packages need to be installed on each machine that will be
 
 Note: User account performing these installation steps must be a `sudo`er on the machine.
 
-##### Install instructions (mac)
+#### Install instructions (mac)
 Installation of the required packages has been tested using [macports](https://www.macports.org/) on Sonoma 14.7 (Apple M3 Pro). Having this tool installed and pre-configured is a requirement for following the rest of these instructions. It may also be possible to build from source or use alternative installation methods (for instance, homebrew).
 
 The first step is to make sure you have [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) (engine + virtualization for macs) installed and running on your machine. Next,
@@ -42,7 +43,7 @@ sudo port select --set helm helm3.16
 ```
 Make sure the executables are on your PATH, by running the `k3d version`, `kubectl version`, and `helm version` commands.
 
-##### Install instructions (RHEL8)
+#### Install instructions (RHEL8)
 Installation of the required packages has been tested on a RHEL8 workstation inside NRAO-CV. These steps require a package manager configured with standard repositories. Installation of [Docker engine](https://docs.docker.com/engine/install/rhel/) is required, but on linux we can get by with just dockerd (Docker Desktop is not necessary, as with mac installation).
 ```
 sudo yum install docker-ce.x86_64
@@ -74,7 +75,8 @@ kubectl get svc
 kubectl describe pods
 ```
 
-Installing a basic Dask deployment onto this local Kubernetes cluster can be accomplished using helm to pull down the chart published by dask, and applying some configuration changes using the YAML files stored in the charts area of this repository:
+#### Dask
+Installing a basic Dask deployment onto a local Kubernetes cluster can be accomplished using helm to pull down the chart published by dask, and applying some configuration changes using the YAML files stored in the charts area of this repository:
 ```
 helm repo add dask https://helm.dask.org/
 helm install dask dask/dask -f charts/prefect/dask-values.yaml
@@ -86,18 +88,16 @@ kubectl port-forward --namespace default svc/dask-scheduler $DASK_SCHEDULER_UI_P
 ```
 Now the scheduler UI can be opened in a browser window (with the current settings in charts/prefect/dask-values.yaml, the address will be http://localhost:$DASK_SCHEDULER_UI_PORT) without having to tunnel onto the k3d cluster.
 
-Installing a basic Prefect deployment onto this local Kubernetes cluster is similarly straightforward using helm:
+#### Prefect
+Installing a basic Prefect deployment onto a local Kubernetes cluster is similarly straightforward using helm:
 ```
 helm repo add prefect https://prefecthq.github.io/prefect-helm
 helm install prefect-server prefect/prefect-server
-helm install prefect-worker prefect/prefect-worker -f charts/prefect/worker-manifest.yaml
 ```
-
 Exposing dashboard UI on the default port from a localized k8s cluster::
 ```
 kubectl port-forward --namespace default svc/prefect-server 4200:4200 &
 ```
-
 Now you can interact with the running Prefect service in the normal way:
 ```
 # access the UI
@@ -110,20 +110,56 @@ python prefect_workflow/deploy.py &
 python prefect_workflow/pipeline.py
 ```
 
-## Airflow Workflow
-### Local Development
-1. Set up Airflow. Recommendation: use the [docker-compose](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/pipeline.html) setup described in Airflow tutorial documentation. 
-2. Clone this repo and update the Airflow configuration file `airflow.cfg` to use the `airflow_workflow/dags/` directory in the repo as its `dags_folder`.
-3. Enable a DAG in the Airflow UI, and it will run on the schedule defined in the definition file. Also, optionally re-parse and trigger the the DAG via the command line or UI.
+#### Airflow
+Installing a basic Airflow deployment onto a local Kubernetes cluster can also be accomplished simply by using the public helm charts, following the [official documentation](https://airflow.apache.org/docs/helm-chart/stable/index.html#installing-the-chart):
+```
+helm repo add apache-airflow https://airflow.apache.org
+helm repo update apache-airflow
+helm upgrade --install airflow apache-airflow/airflow --namespace airflow --create-namespace
+```
+To make DAGs from a specific branch of this repository available within the containers running the airflow service, we can modify the default deployment using additional settings, like this:
+```
+helm upgrade --install airflow apache-airflow/airflow --namespace airflow --set dags.persistence.enabled=false --set dags.gitSync.enabled=true --set dags.gitSync.repo=https://github.com/casangi/RADPS.git --set dags.gitSync.branch=my-branch-name
+```
 
-### Deployment
-Installing a basic Airflow deployment onto a Kubernetes cluster is essentially the same as the Prefect process, just using a different source.
+### Deploying on `radps-k3s`
+In order to issue commands to the `radps-k3s` API server, the command line tools `kubectl` and `helm` must be installed, and the KUBECONFIG environment variable must be properly set to point at the YAML file containing a valid [certificate key](https://docs.k3s.io/cluster-access) that controls access to the shared k3s cluster.
 
-Earlier deployments used the charts in the airflow repo cloned from source, because a 3.0-compatible version of the helm chart hadn't yet been released. Now that the [1.17](https://airflow.apache.org/docs/helm-chart/stable/release_notes.html#airflow-helm-chart-1-17-0-2025-06-21) chart release is out, we can follow [the documentation](https://airflow.apache.org/docs/helm-chart/stable/index.html#installing-the-chart) tagged to a specific version:
+For each deployment on shared infrastructure it is important to isolate activity to a specific context. 
+```
+kubectl create namespace my-deployment-namespace
+kubectl config set-context --current --namespace my-deployment-namespace
+```
+Alternatively, append all the `helm` `kubectl` commands with `--namespace my-deployment-namespace` if working across multiple namespaces.
+
+#### Prefect
+
+Install using public helm charts, overriding certain settings with those tracked by the chart configs in this repository:
+```
+helm repo add prefect https://prefecthq.github.io/prefect-helm
+helm repo update prefect
+helm upgrade --install prefect-server prefect/prefect-server --set server.uiConfig.prefectUiApiUrl="http://prefect.local/api" --set ingress.enabled=true --set ingress.servicePort=prefect-ingress --set backgroundServices.runAsSeparateDeployment=true
+```
+Prefect can be configured to interact with OS-native, locally hosted (k3d), and shared infrastructure deployments depending on context. For more information on how to do this, see the [prefect documentation](https://docs.prefect.io/v3/how-to-guides/configuration/manage-settings) and our [Kubernetes wiki page](https://github.com/casangi/RADPS/wiki/Kubernetes#configure-prefect-for-local-and-remote-development). Briefly, to set up remote access to this deployment on shared infrastructure, you can create an [ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/):
+```
+kubectl apply -f charts/prefect/ingress.yaml
+```
+Then, edit /etc/hosts on the developer machine to match spec.rules.host in [charts/prefect/ingress.yaml](https://github.com/casangi/RADPS/blob/main/charts/prefect/ingress.yaml), i.e., an IP address entry for each EXTERNAL_IP exposed through the traefik proxy (visible via `kubectl get ingress`), each named prefect.local.
+
+##### A note on resource management
+
+The Prefect example pipeline has been configured to run with [Dask task_runners](https://prefecthq.github.io/prefect-dask/task_runners/), as well as [static deployments](https://docs.prefect.io/v3/concepts/deployments#static-infrastructure) using the `serve()` method (see [prefect_workflow/scheduler_deploy.py](https://github.com/casangi/RADPS/blob/main/prefect_workflow/scheduler_deploy.py)). If we wanted to reconfigure the example pipeline to make use of [prefect-kubernetes Workers](https://docs.prefect.io/v3/concepts/workers), we could extend our deployment again using a public helm chart modified with some custom values:
+```
+helm upgrade --install prefect-worker prefect/prefect-worker -f charts/prefect/worker-manifest.yaml
+```
+Connecting to an external resource manager (e.g., an existing dask deployment in a separate namespace) is also possible, but would require modifications to the pipeline ([prefect_workflow/resource_management.py](https://github.com/casangi/RADPS/blob/main/prefect_workflow/resource_management.py)).
+
+#### Airflow
+Earlier deployments used the charts in the [airflow repo](https://github.com/apache/airflow/blob/main/chart/values.yaml) cloned from source, because a 3.0-compatible version of the helm chart hadn't yet been released. Now that the [1.17](https://airflow.apache.org/docs/helm-chart/stable/release_notes.html#airflow-helm-chart-1-17-0-2025-06-21) chart release is out, we can follow [the documentation](https://airflow.apache.org/docs/helm-chart/stable/index.html#installing-the-chart) tagged to a specific version:
 ```
 # isolate our activity to a specific context
-kubectl create namespace my-airflow-deployment-namespace
-kubectl config set-context --current --namespace my-airflow-deployment-namespace
+kubectl create namespace my-deployment-namespace
+kubectl config set-context --current --namespace my-deployment-namespace
 
 # then, assuming you are in the top level of a clone of the RADPS repo, add and install the chart
 # overriding certain settings with those tracked by the chart configs in this repository
