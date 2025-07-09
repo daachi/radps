@@ -1,13 +1,20 @@
 worker:
+  autoscaling:
+    # -- enable autoscaling for the worker
+    enabled: true
+    # -- minimum number of replicas to scale down to
+    minReplicas: 1
+    # -- maximum number of replicas to scale up to
+    maxReplicas: 10
+
   config:
-    workPool: Test
+    # -- the work pool that your started worker will poll.
+    workPool: "Demo"
 
-  apiConfig: "server"
+  apiConfig: "selfHostedServer"
 
-  serverApiConfig:
+  selfHostedServerApiConfig:
     # If the prefect server is located external to this cluster, set a fully qualified domain name as the apiUrl
     # If the prefect server pod is deployed to this cluster, use the cluster DNS endpoint: http://<prefect-server-service-name>.<namespace>.svc.cluster.local:<prefect-server-port>/api
     # -- prefect API url (PREFECT_API_URL)
-    apiUrl: "http://prefect-server.default.svc.cluster.local:4200/api"
-    # -- prefect UI url
-    uiUrl: http://localhost:4200
+    apiUrl: "http://prefect-server.workflow-test.svc.cluster.local:4200/api"
