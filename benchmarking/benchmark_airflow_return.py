@@ -13,12 +13,10 @@ from airflow.operators.python import get_current_context
 sys.path.insert(0, os.path.dirname(__file__))
 from benchmark_utils import organize_benchmark_result, generate_run_id, save_timing_results
 
-
-
 # for quick code check 
-# list_n_tasks = [2, 4, 8, 16, 32]
-# list_sleep_time = [(2.0,2.0)]
-# data_size_mb_list = [0.1, 10] #MB
+list_n_tasks = [2, 4, 8, 16, 32]
+list_sleep_time = [(2.0,2.0)]
+data_size_mb_list = [0.1, 10] #MB
 
 # list_n_tasks = [100]
 # list_sleep_time = [(2.0,2.0)]
@@ -34,16 +32,13 @@ from benchmark_utils import organize_benchmark_result, generate_run_id, save_tim
 # list_sleep_time = [(1.0,0.1), (6.0, 4.0)]
 # data_size_mb_list = [0.1 10]
 
-# list_n_tasks =  [128000]
+#Anuthing after 1000 fails because of xcom limitations
+# list_n_tasks =  [1000]
 # list_sleep_time = [(6.0, 4.0)]
-# data_size_mb_list = [0.1]
-
-list_n_tasks =  [2000]
-list_sleep_time = [(6.0, 4.0)]
-data_size_mb_list = [0.1]
+# data_size_mb_list = [0.01]
 
 logging.getLogger("airflow").setLevel(logging.WARNING)
-logger = logging.getLogger("RADPS")
+logger = logging.getLogger("airflow.task")
 logger.setLevel(logging.INFO)
 
 #def sleep_and_generate_data(min_sleep:float, max_sleep:float, data_size_mb:float, task_id:int):
@@ -53,8 +48,7 @@ def sleep_and_generate_data(min_sleep:float, max_sleep:float, data_size_mb:float
     
     duration = random.uniform(min_sleep, max_sleep)
     time.sleep(duration)
-    #data = np.ones((int(data_size_mb * 1024 * 1024 / 8 ),), dtype=np.float64)
-    data = np.ones((int(data_size_mb * 1024 * 1024 / 8),), dtype=np.float64).tolist()  # Simulating a large array of 1 million elements
+    data = np.ones((int(data_size_mb * 1024 * 1024 / 8),), dtype=np.float64).tolist()  
     end_time = time.time()
     total_time = end_time - start_time
     #return data, total_time   
@@ -116,7 +110,8 @@ def benchmark_airflow_return():
         # modify DAG run id
         runidtime = runid.split('manual__') [1]
         modtime = datetime.fromisoformat(runidtime).strftime("%Y-%m-%d_%H-%M-%S")
-        runid = os.getlogin() + '_' + modtime
+        #runid = os.getlogin() + '_' + modtime
+        runid = "bairflow_benchmark" + '_' + modtime #os.getlogin() fails on k3s
           # replace decimal with 'p' to avoid issues in group_id
         result_dict = organize_benchmark_result(
             run_id = runid,
@@ -134,7 +129,8 @@ def benchmark_airflow_return():
             wait_for_maping = False,
         )
 
-        save_timing_results(result_dict, filename = '/users/jsteeb/RADPS/benchmarking/airflow_benchmark_results.csv' )   
+        save_timing_results(result_dict, filename = '~/airflow_benchmark_results.csv' )   
+        logger = logging.getLogger("airflow.task")
 
         data_sum_arr = np.array(results["data_sum"])
         logger.info("t_workflow: %s" , results['t_workflow'])
