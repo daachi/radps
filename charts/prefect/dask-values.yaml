@@ -36,7 +36,7 @@ jupyter:
       cpu: 1
       memory: 2G
   image:
-    repository: "ghcr.io/dask/dask-notebook" # Container image repository.
+    repository: "amcnicho/radps-dask-notebook" # Container image repository.
     tag: "2025.7.0-py3.12" # Container image tag.
     pullPolicy: IfNotPresent # Container image pull policy.
   env:
