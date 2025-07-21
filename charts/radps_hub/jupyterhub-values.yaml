@@ -25,7 +25,7 @@ hub:
     pvc:
       accessModes:
         - ReadWriteOnce
-      storage: 2Gi
+      storage: 5Gi
       storageClassName: longhorn
 
 # ==============================================================================
@@ -40,10 +40,16 @@ singleuser:
     pullPolicy: IfNotPresent # Container image pull policy.
   extraEnv:
     PREFECT_API_URL: "http://prefect-server:4200/api"
+  cpu:
+    limit: 4
+    guarantee: 0.05
+  memory:
+    limit: 4G
+    guarantee: 512M
   storage:
     type: dynamic
     # Set the default size for each user's home directory PVC.
-    capacity: 10Gi
+    capacity: 15Gi
     dynamic:
       storageClass: longhorn
     extraVolumes:
@@ -76,6 +82,23 @@ proxy:
     secret:
       name: jupyterhub-tls # Name of the secret containing the TLS certificate and key.
 
+
+scheduling:
+  userScheduler:
+    enabled: true
+  podPriority:
+    enabled: true
+  userPlaceholder:
+    enabled: true
+    replicas: 4
+  userPods:
+    nodeAffinity:
+      matchNodePurpose: require
+
+cull:
+  enabled: true
+  timeout: 3600     # shutdown after 1 hour idle
+  every: 600        # check every 10 min
 
     # JupyterHub:
     #   authenticator_class: ldapauthenticator.LDAPAuthenticator
