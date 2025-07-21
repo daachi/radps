@@ -1,0 +1,95 @@
+# jupyterhub-values.yaml
+
+# ==============================================================================
+# I. Hub and Authentication Config
+# ==============================================================================
+hub:
+  config:
+    JupyterHub:
+      authenticator_class: firstuseauthenticator.FirstUseAuthenticator
+    Authenticator:
+      admin_users:
+        - jsteeb
+    FirstUseAuthenticator:
+      create_users: true
+      auto_login: false
+      password_validator:
+        pattern: '^.{8,}$'  # optional: require 8+ character passwords
+        message: 'Password must be at least 8 characters.'
+    KubeSpawner:
+      start_timeout: 300   # you already have this via singleuser.startTimeout
+      http_timeout: 300    # ← bump the HTTP‐readiness timeout
+
+  db:
+    type: sqlite-pvc
+    pvc:
+      accessModes:
+        - ReadWriteOnce
+      storage: 2Gi
+      storageClassName: longhorn
+
+# ==============================================================================
+# II. Storage Provisioning with Longhorn
+# ==============================================================================
+singleuser:
+  startTimeout: 300 # Increase the timeout for starting single-user servers.
+  serviceAccountName: dask-jupyter-role #Needed for Dask and Prefect
+  image:
+    name: ghcr.io/casangi/radps-jupyter-notebook
+    tag: "v0.0.2"
+    pullPolicy: IfNotPresent # Container image pull policy.
+  extraEnv:
+    PREFECT_API_URL: "http://prefect-server:4200/api"
+  storage:
+    type: dynamic
+    # Set the default size for each user's home directory PVC.
+    capacity: 10Gi
+    dynamic:
+      storageClass: longhorn
+    extraVolumes:
+      - name: common-data
+        persistentVolumeClaim:
+          claimName: jupyterhub-common-storage
+     # Mount additional volumes into every user's pod.
+    extraVolumeMounts:
+      - name: common-data
+        mountPath: /home/jovyan/shared
+
+# ==============================================================================
+# III. Proxy and Networking Configuration
+# ==============================================================================
+# Configures the public-facing proxy to handle ingress traffic.
+proxy:
+  # Configure the Kubernetes Service for the proxy.
+  service:
+    # Expose the service on a port on each node in the cluster.
+    type: NodePort
+    # Define the specific NodePort for HTTPS traffic.
+    nodePorts:
+      #http: 30080 #Disabled
+      https: 30443
+  # Enable HTTPS termination at the proxy.
+  https:
+    enabled: true
+     # Use a Kubernetes Secret to provide the TLS certificate and key.
+    type: secret
+    secret:
+      name: jupyterhub-tls # Name of the secret containing the TLS certificate and key.
+
+
+    # JupyterHub:
+    #   authenticator_class: ldapauthenticator.LDAPAuthenticator
+    # Authenticator:
+    #   admin_users:
+    #     - jsteeb
+    # LDAPAuthenticator:
+    #   server_address: cvidma.idm.nrao.edu
+    #   allow_all: true
+    #   server_port: 636
+    #   #use_ssl: true # deprecated
+    #   tls_strategy: "on_connect"
+    #   bind_dn_template:
+    #     - "uid={username},cn=users,cn=accounts,dc=idm,dc=nrao,dc=edu"
+    #   lookup_dn: false
+    #   escape_userdn: false
+    #   valid_username_regex: '^[a-zA-Z][.a-zA-Z0-9_-]*$'

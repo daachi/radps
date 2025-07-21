@@ -1,0 +1,68 @@
+# dask-jupyter-rbac.yaml (Complete Version)
+
+# 1. The Service Account for the Jupyter pod
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dask-jupyter-role
+  namespace: radps-hub
+---
+# 2. The Role for namespaced Dask and core resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dask-jupyter-role
+  namespace: radps-hub
+rules:
+  - apiGroups: ["kubernetes.dask.org"]
+    resources:
+      - "daskclusters"
+      - "daskworkergroups"
+      - "daskjobs"
+      - "daskautoscalers"
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: [""]
+    resources:
+      - "pods"
+      - "pods/log"
+      - "services"
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+---
+# 3. The RoleBinding for the namespaced Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dask-jupyter-binding
+  namespace: radps-hub
+subjects:
+  - kind: ServiceAccount
+    name: dask-jupyter-role
+    namespace: radps-hub
+roleRef:
+  kind: Role
+  name: dask-jupyter-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# 4. The ClusterRole to grant permission to list nodes
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dask-node-lister-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["list", "watch"]
+---
+# 5. The ClusterRoleBinding to grant that permission to the Jupyter service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dask-jupyter-node-lister-binding
+subjects:
+- kind: ServiceAccount
+  name: dask-jupyter-role
+  namespace: radps-hub
+roleRef:
+  kind: ClusterRole
+  name: dask-node-lister-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,12 @@
+# jupyter-allow-egress.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+  namespace: radps-hub
+spec:
+  podSelector: {} # An empty podSelector selects all pods in the namespace
+  policyTypes:
+  - Egress
+  egress:
+  - {} # An empty egress rule allows traffic to all destinations

@@ -1,0 +1,35 @@
+# prefect-server-values.yaml
+
+# Configure the main Kubernetes Service for the Prefect server.
+service:
+  # Expose the service via a NodePort.
+  type: NodePort
+  # Specify the port for the Prefect UI/API.
+  # Note: The Prefect chart uses a different structure than JupyterHub.
+  # The targetPort on the service will be 4200 (the default Prefect port),
+  # and we map the external NodePort 30042 to it.
+  port: 4200
+  nodePort: 30042
+
+# This section configures the Prefect server itself.
+server:
+  # Configure the UI to correctly locate the API server.
+  uiConfig:
+    # This is the crucial setting. It tells the Prefect UI (frontend)
+    # what URL to use to communicate with the Prefect API (backend).
+    # It must match the external access point. [2]
+    prefectUiApiUrl: "http://10.2.97.207:30042/api"
+
+
+# Configure the PostgreSQL database that backs the Prefect server.
+# The chart uses a Bitnami PostgreSQL sub-chart.
+postgresql:
+  # Ensure the sub-chart is enabled.
+  enabled: true
+  # Configure persistence for the PostgreSQL database.
+  persistence:
+    enabled: true
+    # Explicitly use the 'longhorn' StorageClass for the database volume.
+    storageClass: "longhorn"
+    # Define the size of the database volume.
+    size: 30Gi
