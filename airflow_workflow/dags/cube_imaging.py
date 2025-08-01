@@ -27,7 +27,7 @@ def cube_imaging():
     def extract_metadata(nchan=1)->dict:
         """ Extract metadata from the data  """
         fake_metadata = {
-                    'field': 'target',
+                    'field': ['target'],
                     'spw': [0, 1, 2, 3],
                     'channel': list(range(nchan)),
                     'scan': [0, 1, 2, 3, 4],
@@ -37,12 +37,12 @@ def cube_imaging():
     # generate configuration (parameters) to send to the child DAG
     @task
     def make_conf(metadata:dict):
-        nfield= len(metadata['field'])
+        nfield= len(list(metadata['field']))
         nspw = len(metadata['spw'])
         nchan = len(metadata['channel'])
         nscan = len(metadata['scan'])
         niter = 5
-        return {'n_par': nfield*nspw,
+        return {'n_par': nfield*nchan,  # assume single spw process with nchan
                 'n_comb': nscan,
                 'niter':niter} # assuming a fixed number of scans for simplicity
     # dictionary returned by extract_metadata cannot be directly used

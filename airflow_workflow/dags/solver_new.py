@@ -182,7 +182,7 @@ def solver_new_dag():
     # Summarize all results
     final_summary = end()
 
-    data = {'spwid': [0, 1, 2, 3], 'scan': [0, 1, 2, 3, 5]}
+    data = {'spwid': [0, 1, 2, 3], 'scan': [0, 1, 2, 3, 4]}
             
     data_prep(data) >> process_list >> process_results >> final_summary
 solver_new_dag_instance = solver_new_dag()
