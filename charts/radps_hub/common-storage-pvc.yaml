@@ -1,13 +1,13 @@
-# file: common-storage-pvc.yaml
+# common-storage-pvc.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: jupyterhub-common-storage
+  name: radps-hub-pvc
   namespace: radps-hub
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: longhorn
+  storageClassName: longhorn          
   resources:
     requests:
-      storage: 100Gi
+      storage: 1Ti

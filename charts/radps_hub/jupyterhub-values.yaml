@@ -36,13 +36,13 @@ singleuser:
   serviceAccountName: dask-jupyter-role #Needed for Dask and Prefect
   image:
     name: ghcr.io/casangi/radps-jupyter-notebook
-    tag: "v0.0.2"
+    tag: "v0.0.6"
     pullPolicy: IfNotPresent # Container image pull policy.
   extraEnv:
     PREFECT_API_URL: "http://prefect-server:4200/api"
   cpu:
     limit: 4
-    guarantee: 0.05
+    guarantee: 1
   memory:
     limit: 4G
     guarantee: 512M
@@ -53,12 +53,13 @@ singleuser:
     dynamic:
       storageClass: longhorn
     extraVolumes:
-      - name: common-data
+      common-data:
+        name: common-data
         persistentVolumeClaim:
-          claimName: jupyterhub-common-storage
-     # Mount additional volumes into every user's pod.
+          claimName: radps-hub-pvc
     extraVolumeMounts:
-      - name: common-data
+      common-data:
+        name: common-data
         mountPath: /home/jovyan/shared
 
 # ==============================================================================
@@ -95,10 +96,10 @@ scheduling:
     nodeAffinity:
       matchNodePurpose: require
 
-cull:
-  enabled: true
-  timeout: 3600     # shutdown after 1 hour idle
-  every: 600        # check every 10 min
+# cull:
+#   enabled: true
+#   timeout: 3600     # shutdown after 1 hour idle
+#   every: 600        # check every 10 min
 
     # JupyterHub:
     #   authenticator_class: ldapauthenticator.LDAPAuthenticator
