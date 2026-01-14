@@ -1,0 +1,33 @@
+The command:
+
+kubectl get nodes -o json | jq -r '
+.items[] |
+{
+  node: .metadata.name,
+  cpu_allocatable: .status.allocatable.cpu,
+  cpu_capacity: .status.capacity.cpu,
+  memory_gib: ((.status.capacity.memory | sub("Ki$"; "") | tonumber) / 1024 / 1024 | round),
+  hyperthreading: (
+    (.status.capacity.cpu | tonumber)
+    >
+    (.status.allocatable.cpu | tonumber)
+  )
+} |
+"\(.node)\tRAM: \(.memory_gib) GiB\tCPU: \(.cpu_allocatable)/\(.cpu_capacity)\tHT: \(.hyperthreading)"
+'
+
+Result for 14 Jan 2025
+radps-k3s-cp1   RAM: 4 GiB      CPU: 2/2        HT: false
+radps-k3s-cp2   RAM: 4 GiB      CPU: 2/2        HT: false
+radps-k3s-cp3   RAM: 4 GiB      CPU: 2/2        HT: false
+
+radps-k3s-ework5        RAM: 251 GiB    CPU: 32/32      HT: false 7.8GB
+radps-k3s-ework6        RAM: 251 GiB    CPU: 32/32      HT: false
+radps-k3s-ework7        RAM: 251 GiB    CPU: 32/32      HT: false
+radps-k3s-ework8        RAM: 251 GiB    CPU: 32/32      HT: false
+radps-k3s-work1         RAM: 377 GiB    CPU: 32/32      HT: false 11.78
+radps-k3s-work10        RAM: 377 GiB    CPU: 16/16      HT: false
+radps-k3s-work2         RAM: 251 GiB    CPU: 16/16      HT: false 15.6
+radps-k3s-work3         RAM: 251 GiB    CPU: 32/32      HT: false
+radps-k3s-work4         RAM: 251 GiB    CPU: 16/16      HT: false
+radps-k3s-work9         RAM: 251 GiB    CPU: 16/16      HT: false

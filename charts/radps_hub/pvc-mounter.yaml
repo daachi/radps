@@ -1,0 +1,26 @@
+# pvc-mounter.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pvc-mounter
+  namespace: radps-hub
+spec:
+  restartPolicy: Never
+  containers:
+  - name: shell
+    image: alpine:3.20
+    command: ["sh", "-c", "apk add --no-cache rsync tar && sleep 365d"]
+    volumeMounts:
+    - name: common-data
+      mountPath: /shared
+  volumes:
+  - name: common-data
+    persistentVolumeClaim:
+      claimName: radps-hub-pvc
+
+# kubectl apply -f pvc-mounter.yaml
+# kubectl -n radps-hub wait --for=condition=Ready pod/pvc-mounter --timeout=120s
+# This needs to be run from a location that has access to the source data (cvpost node)
+# SRC='/lustre/naasc/sciops/comm/fmadsen/tickets/scg-164/tclean_dryrun/2019.1.01463.S/working/uid___A002_Xf07bba_Xb895_target.ms'
+
+# kubectl -n radps-hub cp "$SRC" pvc-mounter:/shared/
