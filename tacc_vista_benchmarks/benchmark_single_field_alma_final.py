@@ -169,7 +169,23 @@ def main():
                 except WorkerStartTimeoutError as err:
                     # One scale point with a laggy worker shouldn't kill the
                     # whole sweep — log and skip to the next iteration.
-                    print(f"Skipping {number_of_nodes}-node run: {err}")
+                    expected = n_workers_per_node * number_of_nodes
+                    info = viper_client.scheduler_info().get("workers", {})
+                    arrived_names = sorted(w.get("name", "") for w in info.values())
+                    expected_procids = set(range(expected))
+                    arrived_procids = set()
+                    for name in arrived_names:
+                        # name format: "viper-<procid>-<hostname>"
+                        parts = name.split("-")
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            arrived_procids.add(int(parts[1]))
+                    missing_procids = sorted(expected_procids - arrived_procids)
+                    print(
+                        f"Skipping {number_of_nodes}-node run: {err}. "
+                        f"Got {len(info)}/{expected}. "
+                        f"Missing PROCIDs: {missing_procids[:20]}"
+                        f"{'...' if len(missing_procids) > 20 else ''}"
+                    )
                     continue
                 print("total number of workers ", str(n_workers_per_node * number_of_nodes))
                 print("**************")
@@ -310,9 +326,23 @@ def launch_single_job_cluster(
     # same hostname-based name, the scheduler treats subsequent registrations
     # as the same worker reconnecting, and the workers flap in a loop until
     # death-timeout kicks one out.
+    #
+    # The `sleep $((SLURM_PROCID / NWPN))` stagger spreads the connection
+    # storm one node-group per second. At ~384 workers all hitting the
+    # scheduler simultaneously, the accept queue / handshake pipeline drops
+    # the occasional worker; staggering keeps it under threshold.
+    # TACC's XALT instruments srun's task 0 and prepends
+    # /opt/apps/xalt/xalt/lib64 to LD_LIBRARY_PATH, which holds an old
+    # libcrypto.so that preempts the conda env's libcrypto.so.3 and
+    # breaks Python 3.13's _ssl import (needs OPENSSL_3.3.0).
+    # Prepending the env's own lib/ wins the lookup.
+    conda_lib = os.path.join(os.path.dirname(os.path.dirname(python)), "lib")
+
     job_tag = uuid.uuid4().hex[:8]
     worker_script_path = os.path.join(log_directory, f"dask_worker_{job_tag}.sh")
     worker_script = f"""#!/usr/bin/env bash
+export LD_LIBRARY_PATH="{conda_lib}:${{LD_LIBRARY_PATH:-}}"
+sleep $(( SLURM_PROCID / {n_workers_per_node} ))
 exec {python} -m distributed.cli.dask_worker {scheduler_addr} \\
     --name "viper-${{SLURM_PROCID}}-$(hostname -s)" \\
     --nthreads {threads_per_worker} --nworkers 1 \\
