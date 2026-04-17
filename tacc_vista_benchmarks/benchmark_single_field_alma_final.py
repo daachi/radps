@@ -14,6 +14,7 @@ def main():
     import subprocess
     import time
     from dask.distributed import Client, LocalCluster
+    from distributed.exceptions import WorkerStartTimeoutError
     from datetime import datetime
 
     print('1 Logging Parameters Setup')
@@ -160,10 +161,16 @@ def main():
                 print(viper_client.dashboard_link)
                 # Gate the benchmark on the full worker set — we want gang
                 # scheduling, not partial-startup progress.
-                viper_client.wait_for_workers(
-                    n_workers=n_workers_per_node * number_of_nodes,
-                    timeout=3600,
-                )
+                try:
+                    viper_client.wait_for_workers(
+                        n_workers=n_workers_per_node * number_of_nodes,
+                        timeout=3600,
+                    )
+                except WorkerStartTimeoutError as err:
+                    # One scale point with a laggy worker shouldn't kill the
+                    # whole sweep — log and skip to the next iteration.
+                    print(f"Skipping {number_of_nodes}-node run: {err}")
+                    continue
                 print("total number of workers ", str(n_workers_per_node * number_of_nodes))
                 print("**************")
 
@@ -265,6 +272,7 @@ def launch_single_job_cluster(
     # srun to fan n_workers_per_node dask-worker processes across all nodes.
     # The scheduler runs in-process on the driver (login-side IB interface).
     import os
+    import re
     import shlex
     import subprocess
     import uuid
@@ -316,7 +324,7 @@ srun --ntasks={n_tasks} --ntasks-per-node={n_workers_per_node} \\
     --memory-limit {mem_per_worker_gb}GB \\
     --local-directory {local_directory} \\
     --interface {interface_worker} \\
-    --resources "slots=1" --nanny --death-timeout 120
+    --resources "slots=1" --nanny --death-timeout 300
 """
     script_path = os.path.join(log_directory, f"dask_{uuid.uuid4().hex[:8]}.sbatch")
     with open(script_path, "w") as f:
@@ -324,9 +332,18 @@ srun --ntasks={n_tasks} --ntasks-per-node={n_workers_per_node} \\
 
     print(sbatch_body)
     print("**************")
-    job_id = subprocess.check_output(
-        ["sbatch", "--parsable", script_path], text=True
-    ).strip().split(";")[0]
+    # TACC's submit hooks prepend a welcome banner to sbatch stdout, so the
+    # `--parsable` JOBID[;CLUSTER] line is not the whole output. Scan every
+    # line for the parsable pattern and take the last match.
+    raw_out = subprocess.check_output(
+        ["sbatch", "--parsable", script_path],
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    matches = re.findall(r"^\s*(\d+)(?:;\S+)?\s*$", raw_out, flags=re.MULTILINE)
+    if not matches:
+        raise RuntimeError(f"Could not parse job id from sbatch output:\n{raw_out}")
+    job_id = matches[-1]
     print(f"Submitted SLURM job {job_id} for {n_tasks} workers on {number_of_nodes} nodes")
     return cluster, client, job_id
 
