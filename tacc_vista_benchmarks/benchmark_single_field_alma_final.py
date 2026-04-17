@@ -305,6 +305,26 @@ def launch_single_job_cluster(
             f"export {k}={shlex.quote(str(v))}" for k, v in env_vars.items()
         ) + "\n"
 
+    # Each srun task runs this helper, where ${{SLURM_PROCID}} is expanded
+    # per-task. Without a unique --name, every task on a node defaults to the
+    # same hostname-based name, the scheduler treats subsequent registrations
+    # as the same worker reconnecting, and the workers flap in a loop until
+    # death-timeout kicks one out.
+    job_tag = uuid.uuid4().hex[:8]
+    worker_script_path = os.path.join(log_directory, f"dask_worker_{job_tag}.sh")
+    worker_script = f"""#!/usr/bin/env bash
+exec {python} -m distributed.cli.dask_worker {scheduler_addr} \\
+    --name "viper-${{SLURM_PROCID}}-$(hostname -s)" \\
+    --nthreads {threads_per_worker} --nworkers 1 \\
+    --memory-limit {mem_per_worker_gb}GB \\
+    --local-directory {local_directory} \\
+    --interface {interface_worker} \\
+    --resources "slots=1" --nanny --death-timeout 300
+"""
+    with open(worker_script_path, "w") as f:
+        f.write(worker_script)
+    os.chmod(worker_script_path, 0o755)
+
     sbatch_body = f"""#!/usr/bin/env bash
 #SBATCH -J dask-worker
 #SBATCH -o {log_directory}/dask-worker-%J.out
@@ -319,14 +339,9 @@ def launch_single_job_cluster(
 {env_exports}
 srun --ntasks={n_tasks} --ntasks-per-node={n_workers_per_node} \\
      --cpus-per-task={cpus_per_task} \\
-    {python} -m distributed.cli.dask_worker {scheduler_addr} \\
-    --nthreads {threads_per_worker} --nworkers 1 \\
-    --memory-limit {mem_per_worker_gb}GB \\
-    --local-directory {local_directory} \\
-    --interface {interface_worker} \\
-    --resources "slots=1" --nanny --death-timeout 300
+    {worker_script_path}
 """
-    script_path = os.path.join(log_directory, f"dask_{uuid.uuid4().hex[:8]}.sbatch")
+    script_path = os.path.join(log_directory, f"dask_{job_tag}.sbatch")
     with open(script_path, "w") as f:
         f.write(sbatch_body)
 
