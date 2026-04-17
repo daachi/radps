@@ -331,17 +331,20 @@ def launch_single_job_cluster(
     # storm one node-group per second. At ~384 workers all hitting the
     # scheduler simultaneously, the accept queue / handshake pipeline drops
     # the occasional worker; staggering keeps it under threshold.
-    # TACC's XALT instruments srun's task 0 and prepends
-    # /opt/apps/xalt/xalt/lib64 to LD_LIBRARY_PATH, which holds an old
-    # libcrypto.so that preempts the conda env's libcrypto.so.3 and
-    # breaks Python 3.13's _ssl import (needs OPENSSL_3.3.0).
-    # Prepending the env's own lib/ wins the lookup.
+    # TACC's XALT wraps srun's task 0 via LD_PRELOAD; the XALT .so has an
+    # RUNPATH to /opt/apps/xalt/xalt/lib64 and pulls in an old libcrypto.so
+    # that preempts the conda env's libcrypto.so.3, breaking Python 3.13's
+    # _ssl import (needs OPENSSL_3.3.0). LD_LIBRARY_PATH alone can't fix
+    # this — the XALT RUNPATH resolves first. Force-load the env's
+    # libcrypto.so.3 via LD_PRELOAD so it wins the lookup race, and also
+    # prepend conda lib/ to LD_LIBRARY_PATH for any downstream deps.
     conda_lib = os.path.join(os.path.dirname(os.path.dirname(python)), "lib")
 
     job_tag = uuid.uuid4().hex[:8]
     worker_script_path = os.path.join(log_directory, f"dask_worker_{job_tag}.sh")
     worker_script = f"""#!/usr/bin/env bash
 export LD_LIBRARY_PATH="{conda_lib}:${{LD_LIBRARY_PATH:-}}"
+export LD_PRELOAD="{conda_lib}/libcrypto.so.3${{LD_PRELOAD:+:$LD_PRELOAD}}"
 sleep $(( SLURM_PROCID / {n_workers_per_node} ))
 exec {python} -m distributed.cli.dask_worker {scheduler_addr} \\
     --name "viper-${{SLURM_PROCID}}-$(hostname -s)" \\
