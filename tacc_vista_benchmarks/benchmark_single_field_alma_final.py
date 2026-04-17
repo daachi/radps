@@ -1,16 +1,19 @@
 
 
 def main():
+    # Sweeps `image_cube_single_field` across (threading_mode, n_nodes) on the
+    # TACC Vista `gg` queue. Per iteration: submits ONE multi-node SLURM job
+    # (see launch_single_job_cluster), waits for all workers, runs the imager,
+    # writes per-run + overall feather tables, then scancels.
     from xradio.measurement_set import open_processing_set
     from astroviper.distributed.imaging.image_cube_single_field import image_cube_single_field
     import pandas as pd
-    from dask.distributed import performance_report
     import numpy as np
     import os
+    import shutil
+    import subprocess
     import time
-    import dask
-    from dask.distributed import Client
-    from dask_jobqueue import SLURMCluster
+    from dask.distributed import Client, LocalCluster
     from datetime import datetime
 
     print('1 Logging Parameters Setup')
@@ -79,7 +82,9 @@ def main():
 
     print('5 Configuring Cluster Parameters')
 
-    number_of_nodes_list = [32, 28, 24, 20,16,12,8,6,4,2]
+    # gg queue caps: MaxNode=32, MaxNodePU=128. MaxJobsPU=20 is irrelevant here
+    # since we submit one multi-node job per scale point.
+    number_of_nodes_list = [32, 28, 24, 20,16,12,8,6,4,2,1]
     dask_local_dir = scratch + "/dask_scratch"
     n_chunks = [15360]
 
@@ -88,9 +93,14 @@ def main():
     memory_per_node = 240  # GB
 
     print('6 Starting Node Loop')
-    
+
+    # Three axes we want to compare:
+    #   dask-controlled   : Dask owns the 12 threads per worker.
+    #   single-threaded   : pure single-threaded baseline (no hidden OMP pool).
+    #   independent       : 1 Dask thread per worker, but the processing
+    #                       function launches its own 12-thread OMP pool.
     threading_modes = ["multi-threaded-dask-controlled", "single-threaded", "multi-threaded-independent"]
-    
+
     for threading_mode in threading_modes:
         print(f"Running benchmark with threading mode: {threading_mode}")
         if threading_mode == "single-threaded":
@@ -102,108 +112,129 @@ def main():
         elif threading_mode == "multi-threaded-independent":
             threads_per_worker = 1
             processing_function_threads = 12
-            
+
         dask_config("/scratch/11335/jsteeb/dask_scratch", processing_function_threads)
 
         for number_of_nodes in number_of_nodes_list:
             print('Removing image')
-            os.system("rm -rf " + image_name)
+            shutil.rmtree(image_name, ignore_errors=True)
             print('Done removing image')
 
-            cluster = SLURMCluster(
-                processes=n_workers_per_node,
-                cores=n_workers_per_node * threads_per_worker,
-                interface='ib0',
-                memory=f"{memory_per_node}GB",
-                job_mem="0",                # suppresses the #SBATCH --mem line
-                walltime="24:00:00",
-                queue="gg",
-                name="viper",
+            # These get exported in the sbatch body. `dask.config.set` on the
+            # driver doesn't reach workers launched via srun, so we pass the
+            # BLAS/OMP thread counts as real env vars.
+            worker_env = {
+                "OMP_NUM_THREADS": processing_function_threads,
+                "MKL_NUM_THREADS": processing_function_threads,
+                "NUMEXPR_NUM_THREADS": processing_function_threads,
+                "OPENBLAS_NUM_THREADS": processing_function_threads,
+            }
+            # In `multi-threaded-independent` mode Dask only advertises 1 thread
+            # per worker, but the processing function still spawns a 12-thread
+            # OMP pool. If SLURM cgroups pin cpus-per-task=1, that pool is
+            # crammed onto a single core. max() gives the pool room to run.
+            cpus_per_task = max(threads_per_worker, processing_function_threads)
+
+            cluster, viper_client, job_id = launch_single_job_cluster(
+                number_of_nodes=number_of_nodes,
+                n_workers_per_node=n_workers_per_node,
+                threads_per_worker=threads_per_worker,
+                cpus_per_task=cpus_per_task,
+                memory_per_node_gb=memory_per_node,
                 python="/work/11335/jsteeb/vista/envs/zinc/bin/python",
                 local_directory=dask_local_dir,
                 log_directory=dask_local_dir + "/logs",
-                #job_extra_directives=["--exclude=" + exclude_nodes],
-                scheduler_options={"dashboard_address": ":" + str(dashboard_port), "interface": "ibp1s0"},
-                worker_extra_args=["--resources", "slots=1"],
-                job_extra_directives=["-N 1"],
+                queue="gg",
+                walltime="24:00:00",
+                dashboard_port=dashboard_port,
+                interface_scheduler="ibp1s0",
+                interface_worker="ib0",
+                env_vars=worker_env,
             )
-
-            print(cluster.job_script())
-            print("**************")
-            viper_client = Client(cluster)
-            print(viper_client.dashboard_link)
-            cluster.scale(n_workers_per_node * number_of_nodes)
-            viper_client.wait_for_workers(n_workers=n_workers_per_node * number_of_nodes)
-            print("total number of workers ", str(n_workers_per_node * number_of_nodes))
-            print("**************")
-            print(cluster.job_script())
-
-            for n_c in n_chunks:
-                single_run_name = WOP + '_n_nodes_' + str(number_of_nodes) + '_n_chunks_' + str(n_c) + '_' + threading_mode + '_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-                start = time.time()
-
-                imaging_metadata_dict = image_cube_single_field(
-                    ps_store=ps_store,
-                    image_store=image_name,
-                    image_params=image_params,
-                    imaging_weights_params={
-                        "weighting": "briggs",
-                        "robust": 0.5,
-                    },
-                    # imaging_weights_params={
-                    #     "weighting": "natural",
-                    # },
-                    iteration_control_params={
-                        "niter": 0,
-                        "nmajor": 0,
-                        "threshold": 0.0,
-                        "gain": 0.1,
-                        "cyclefactor": 1.5,
-                        "cycleniter": 10,
-                        "fft_padding": 1.2,
-                    },
-                    gridder="prolate_spheroidal",
-                    deconvolver="hogbom",
-                    scan_intents="OBSERVE_TARGET#ON_SOURCE",
-                    #image_data_variables_keep=["sky", "point_spread_function", "primary_beam"],
-                    #image_data_variables_keep=["sky_model", "sky_residual", "sky_deconvolved", "point_spread_function", "primary_beam"],
-                    image_data_variables_keep=["sky_residual", "point_spread_function", "primary_beam"],
-                    processing_set_data_group_name="base",
-                    double_precision=True,
-                    thread_info=None,
-                    n_chunks=n_c,
-                    overwrite=True,
-                    processing_function_threads=processing_function_threads,
+            # try/finally guarantees the SLURM job is cancelled and local
+            # scheduler is closed even if wait_for_workers times out or the
+            # imager raises mid-run. Without this a stuck 32-node job keeps
+            # burning allocation.
+            try:
+                print("**************")
+                print(viper_client.dashboard_link)
+                # Gate the benchmark on the full worker set — we want gang
+                # scheduling, not partial-startup progress.
+                viper_client.wait_for_workers(
+                    n_workers=n_workers_per_node * number_of_nodes,
+                    timeout=3600,
                 )
+                print("total number of workers ", str(n_workers_per_node * number_of_nodes))
+                print("**************")
 
-                print('The return dict:', imaging_metadata_dict)
-                imaging_time = time.time() - start
+                for n_c in n_chunks:
+                    single_run_name = WOP + '_n_nodes_' + str(number_of_nodes) + '_n_chunks_' + str(n_c) + '_' + threading_mode + '_' + datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+                    start = time.time()
 
-                # Convert to DataFrame if image_cube_single_field returns a dict
-                if isinstance(imaging_metadata_dict, dict):
-                    imaging_metadata_df = pd.DataFrame([imaging_metadata_dict])
-                else:
-                    imaging_metadata_df = imaging_metadata_dict
-                imaging_metadata_df.to_feather(os.path.join(results_dir, 'df_' + single_run_name  +  '.ft'))
+                    imaging_metadata_dict = image_cube_single_field(
+                        ps_store=ps_store,
+                        image_store=image_name,
+                        image_params=image_params,
+                        imaging_weights_params={
+                            "weighting": "briggs",
+                            "robust": 0.5,
+                        },
+                        # imaging_weights_params={
+                        #     "weighting": "natural",
+                        # },
+                        iteration_control_params={
+                            "niter": 0,
+                            "nmajor": 0,
+                            "threshold": 0.0,
+                            "gain": 0.1,
+                            "cyclefactor": 1.5,
+                            "cycleniter": 10,
+                            "fft_padding": 1.2,
+                        },
+                        gridder="prolate_spheroidal",
+                        deconvolver="hogbom",
+                        scan_intents="OBSERVE_TARGET#ON_SOURCE",
+                        #image_data_variables_keep=["sky", "point_spread_function", "primary_beam"],
+                        #image_data_variables_keep=["sky_model", "sky_residual", "sky_deconvolved", "point_spread_function", "primary_beam"],
+                        image_data_variables_keep=["sky_residual", "point_spread_function", "primary_beam"],
+                        processing_set_data_group_name="base",
+                        double_precision=True,
+                        thread_info=None,
+                        n_chunks=n_c,
+                        overwrite=True,
+                        processing_function_threads=processing_function_threads,
+                    )
 
-                overall_dict = {
-                    'creation_date': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-                    'total_time': imaging_time,
-                    'n_nodes': number_of_nodes,
-                    'n_workers_per_node': n_workers_per_node,
-                    'n_threads_per_worker': threads_per_worker,
-                    'processing_function_threads': processing_function_threads,
-                    'memory_per_node': memory_per_node,
-                    'n_chunks': [n_c],
-                    'run_name': single_run_name,
-                    'threading_mode': threading_mode,
-                }
-                overall_benchmark_df = pd.concat([overall_benchmark_df, pd.DataFrame(overall_dict)], ignore_index=True)
-                print('overall_benchmark_df', pd.DataFrame(overall_dict))
-                overall_benchmark_df.to_feather(os.path.join(results_dir, 'df_overall_' + WOP + '.ft'))
+                    print('The return dict:', imaging_metadata_dict)
+                    imaging_time = time.time() - start
 
-            viper_client.shutdown()
-            cluster.close()
+                    # Convert to DataFrame if image_cube_single_field returns a dict
+                    if isinstance(imaging_metadata_dict, dict):
+                        imaging_metadata_df = pd.DataFrame([imaging_metadata_dict])
+                    else:
+                        imaging_metadata_df = imaging_metadata_dict
+                    imaging_metadata_df.to_feather(os.path.join(results_dir, 'df_' + single_run_name  +  '.ft'))
+
+                    overall_dict = {
+                        'creation_date': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
+                        'total_time': imaging_time,
+                        'n_nodes': number_of_nodes,
+                        'n_workers_per_node': n_workers_per_node,
+                        'n_threads_per_worker': threads_per_worker,
+                        'processing_function_threads': processing_function_threads,
+                        'memory_per_node': memory_per_node,
+                        'n_chunks': [n_c],
+                        'run_name': single_run_name,
+                        'threading_mode': threading_mode,
+                    }
+                    overall_benchmark_df = pd.concat([overall_benchmark_df, pd.DataFrame(overall_dict)], ignore_index=True)
+                    print('overall_benchmark_df', pd.DataFrame(overall_dict))
+                    overall_benchmark_df.to_feather(os.path.join(results_dir, 'df_overall_' + WOP + '.ft'))
+
+            finally:
+                subprocess.run(["scancel", job_id], check=False)
+                viper_client.close()
+                cluster.close()
 
     print('overall_benchmark_df', overall_benchmark_df)
     overall_benchmark_df.to_feather(os.path.join(results_dir, 'df_overall_' + WOP + '.ft'))
@@ -212,7 +243,99 @@ def main():
 
 
 
-def dask_config(local_directory,n_threads):
+def launch_single_job_cluster(
+    number_of_nodes,
+    n_workers_per_node,
+    threads_per_worker,
+    memory_per_node_gb,
+    python,
+    local_directory,
+    log_directory,
+    cpus_per_task=None,
+    env_vars=None,
+    queue="gg",
+    walltime="24:00:00",
+    dashboard_port=8780,
+    interface_scheduler="ibp1s0",
+    interface_worker="ib0",
+):
+    # dask-jobqueue's SLURMCluster submits one SLURM job per group of
+    # `processes` workers, so scaling to N nodes means N jobs — which hits
+    # MaxJobsPU=20 on gg. Here we submit a single multi-node sbatch and use
+    # srun to fan n_workers_per_node dask-worker processes across all nodes.
+    # The scheduler runs in-process on the driver (login-side IB interface).
+    import os
+    import shlex
+    import subprocess
+    import uuid
+    from dask.distributed import Client, LocalCluster
+
+    if cpus_per_task is None:
+        cpus_per_task = threads_per_worker
+
+    os.makedirs(log_directory, exist_ok=True)
+
+    # n_workers=0: LocalCluster is used here purely as a scheduler host.
+    # Workers attach later via the SLURM job below.
+    # Vista note: login nodes expose IB as `ibp1s0`, compute nodes as `ib0`.
+    cluster = LocalCluster(
+        n_workers=0,
+        interface=interface_scheduler,
+        dashboard_address=f":{dashboard_port}",
+    )
+    client = Client(cluster)
+    scheduler_addr = cluster.scheduler_address
+
+    mem_per_worker_gb = memory_per_node_gb // n_workers_per_node
+    n_tasks = number_of_nodes * n_workers_per_node
+
+    # Real env vars (not dask.config) so the srun-launched worker processes
+    # actually inherit them.
+    env_exports = ""
+    if env_vars:
+        env_exports = "\n".join(
+            f"export {k}={shlex.quote(str(v))}" for k, v in env_vars.items()
+        ) + "\n"
+
+    sbatch_body = f"""#!/usr/bin/env bash
+#SBATCH -J dask-worker
+#SBATCH -o {log_directory}/dask-worker-%J.out
+#SBATCH -e {log_directory}/dask-worker-%J.err
+#SBATCH -p {queue}
+#SBATCH -N {number_of_nodes}
+#SBATCH --ntasks-per-node={n_workers_per_node}
+#SBATCH --cpus-per-task={cpus_per_task}
+#SBATCH --mem=0
+#SBATCH -t {walltime}
+
+{env_exports}
+srun --ntasks={n_tasks} --ntasks-per-node={n_workers_per_node} \\
+     --cpus-per-task={cpus_per_task} \\
+    {python} -m distributed.cli.dask_worker {scheduler_addr} \\
+    --nthreads {threads_per_worker} --nworkers 1 \\
+    --memory-limit {mem_per_worker_gb}GB \\
+    --local-directory {local_directory} \\
+    --interface {interface_worker} \\
+    --resources "slots=1" --nanny --death-timeout 120
+"""
+    script_path = os.path.join(log_directory, f"dask_{uuid.uuid4().hex[:8]}.sbatch")
+    with open(script_path, "w") as f:
+        f.write(sbatch_body)
+
+    print(sbatch_body)
+    print("**************")
+    job_id = subprocess.check_output(
+        ["sbatch", "--parsable", script_path], text=True
+    ).strip().split(";")[0]
+    print(f"Submitted SLURM job {job_id} for {n_tasks} workers on {number_of_nodes} nodes")
+    return cluster, client, job_id
+
+
+def dask_config(local_directory, n_threads):
+    # Applies to the in-process scheduler only. The nanny.environ.* entries
+    # are a belt-and-suspenders companion to the env vars exported by the
+    # sbatch body — they take effect only if the worker process reads this
+    # driver's config (e.g. via dask config files), not automatically.
     import dask
     if local_directory:
         dask.config.set({"temporary_directory": local_directory})
@@ -220,13 +343,21 @@ def dask_config(local_directory,n_threads):
     dask.config.set({"distributed.scheduler.allowed-failures": 10})
     dask.config.set({"distributed.scheduler.work-stealing": True})
     dask.config.set({"distributed.scheduler.unknown-task-duration": "99m"})
+    # Disable pause/terminate so benchmark measurements aren't perturbed by
+    # Dask backing off under memory pressure.
     dask.config.set({"distributed.worker.memory.pause": False})
     dask.config.set({"distributed.worker.memory.terminate": False})
-    # dask.config.set({"distributed.worker.memory.recent-to-old-time": "999s"})
+    dask.config.set({"distributed.worker.memory.target": 0.95})
+    dask.config.set({"distributed.worker.memory.spill": 0.9})
+    # Long timeouts so transient IB hiccups don't kill a scale run.
     dask.config.set({"distributed.comm.timeouts.connect": "3600s"})
     dask.config.set({"distributed.comm.timeouts.tcp": "3600s"})
     dask.config.set({"distributed.nanny.environ.OMP_NUM_THREADS": n_threads})
     dask.config.set({"distributed.nanny.environ.MKL_NUM_THREADS": n_threads})
+    dask.config.set({"distributed.nanny.environ.NUMEXPR_NUM_THREADS": n_threads})
+    dask.config.set({"distributed.nanny.environ.OPENBLAS_NUM_THREADS": n_threads})
+    dask.config.set({"distributed.nanny.environ.PARALLEL_NUM_THREADS": n_threads})
+    dask.config.set({"distributed.nanny.environ.DASK_INTERNAL_THREADS": n_threads})
 
 
 
