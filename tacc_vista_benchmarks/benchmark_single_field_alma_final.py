@@ -101,7 +101,8 @@ def main():
     #   independent       : 1 Dask thread per worker, but the processing
     #                       function launches its own 12-thread OMP pool.
     #threading_modes = ["multi-threaded-dask-controlled", "single-threaded", "multi-threaded-independent"]
-    threading_modes = ["single-threaded", "multi-threaded-independent"]
+    #threading_modes = ["single-threaded", "multi-threaded-independent"]
+    threading_modes = ["multi-threaded-independent"]
 
     for threading_mode in threading_modes:
         print(f"Running benchmark with threading mode: {threading_mode}")
