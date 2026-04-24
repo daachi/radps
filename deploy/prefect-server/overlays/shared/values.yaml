@@ -1,0 +1,17 @@
+# Shared radps-k3s cluster — full Prefect Server values
+
+service:
+  type: NodePort
+  port: 4200
+  nodePort: 30042
+
+server:
+  uiConfig:
+    prefectUiApiUrl: "http://10.2.97.207:30042/api"
+
+postgresql:
+  enabled: true
+  persistence:
+    enabled: true
+    storageClass: "longhorn"
+    size: 30Gi

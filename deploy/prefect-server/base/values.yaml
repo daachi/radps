@@ -1,0 +1,6 @@
+# Base Prefect Server values — common across all environments
+
+postgresql:
+  enabled: true
+  persistence:
+    enabled: true

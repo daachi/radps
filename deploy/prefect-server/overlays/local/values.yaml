@@ -1,0 +1,15 @@
+# Local single-node k3s — full Prefect Server values
+
+service:
+  type: ClusterIP
+
+server:
+  uiConfig:
+    prefectUiApiUrl: "http://prefect.noop.local/api"
+
+postgresql:
+  enabled: true
+  persistence:
+    enabled: true
+    storageClass: "local-path"
+    size: 5Gi

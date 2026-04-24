@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+helmCharts:
+  - name: jupyterhub
+    repo: https://hub.jupyter.org/helm-chart/
+    releaseName: jupyterhub
+    namespace: radps-hub
+    valuesFile: jupyterhub-values.yaml
+
+  - name: prefect-server
+    repo: https://prefecthq.github.io/prefect-helm
+    releaseName: prefect-server
+    namespace: radps-hub
+    valuesFile: prefect-server-values.yaml

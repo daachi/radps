@@ -1,0 +1,79 @@
+# Shared radps-k3s cluster — full JupyterHub values
+
+hub:
+  config:
+    JupyterHub:
+      authenticator_class: firstuseauthenticator.FirstUseAuthenticator
+    Authenticator:
+      admin_users:
+        - jsteeb
+    FirstUseAuthenticator:
+      create_users: true
+      auto_login: false
+      password_validator:
+        pattern: '^.{8,}$'
+        message: 'Password must be at least 8 characters.'
+    KubeSpawner:
+      start_timeout: 300
+      http_timeout: 300
+
+  db:
+    type: sqlite-pvc
+    pvc:
+      accessModes:
+        - ReadWriteOnce
+      storage: 5Gi
+      storageClassName: longhorn
+
+singleuser:
+  startTimeout: 300
+  serviceAccountName: dask-jupyter-role
+  image:
+    name: ghcr.io/casangi/radps-jupyter-notebook
+    tag: "v0.0.6"
+    pullPolicy: IfNotPresent
+  extraEnv:
+    PREFECT_API_URL: "http://prefect-server:4200/api"
+  cpu:
+    limit: 4
+    guarantee: 1
+  memory:
+    limit: 4G
+    guarantee: 512M
+  storage:
+    type: dynamic
+    capacity: 15Gi
+    dynamic:
+      storageClass: longhorn
+    extraVolumes:
+      common-data:
+        name: common-data
+        persistentVolumeClaim:
+          claimName: radps-hub-pvc
+    extraVolumeMounts:
+      common-data:
+        name: common-data
+        mountPath: /home/jovyan/shared
+
+proxy:
+  service:
+    type: NodePort
+    nodePorts:
+      https: 30443
+  https:
+    enabled: true
+    type: secret
+    secret:
+      name: jupyterhub-tls
+
+scheduling:
+  userScheduler:
+    enabled: true
+  podPriority:
+    enabled: true
+  userPlaceholder:
+    enabled: true
+    replicas: 4
+  userPods:
+    nodeAffinity:
+      matchNodePurpose: require
