@@ -4,7 +4,7 @@ This directory contains Jupyter notebooks that run **inside the RADPS JupyterHub
 
 ## What the notebook does
 
-`kube_prefect_daks_tests.ipynb` creates an on-demand Dask cluster inside Kubernetes using the Dask Kubernetes Operator, connects a client, and runs test workloads including:
+`kube_prefect_dask_tests.ipynb` creates an on-demand Dask cluster inside Kubernetes using the Dask Kubernetes Operator, connects a client, and runs test workloads including:
 
 - Raw `dask.delayed` tasks that read `.zarr` data from shared storage via `xradio`
 - Prefect flows using `DaskTaskRunner` pointed at the dynamically-created Dask scheduler
@@ -107,7 +107,7 @@ Once all infrastructure is deployed:
 
 1. Access JupyterHub at `https://<node-ip>:30443`
 2. Log in (account created on first use)
-3. Open `kube_prefect_daks_tests.ipynb`
+3. Open `kube_prefect_dask_tests.ipynb`
 4. Run cells sequentially — the notebook will create a Dask cluster, run workloads, and tear it down
 
 ## Summary of deployment order
